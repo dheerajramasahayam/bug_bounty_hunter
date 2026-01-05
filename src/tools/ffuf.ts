@@ -61,10 +61,14 @@ class FfufWrapper {
         args.push('-u', targetUrl);
 
         // Wordlist
-        const wordlist = options.wordlist || externalTools.getWordlistPath('directories');
-        if (!fs.existsSync(wordlist)) {
-            logger.warn(`Wordlist not found: ${wordlist}`);
-            return [];
+        // Wordlist - ensure it exists or download it
+        let wordlist = options.wordlist;
+        if (!wordlist) {
+            wordlist = await externalTools.ensureWordlist('directories');
+        } else if (!fs.existsSync(wordlist)) {
+            // If a custom path is provided but missing, warn but fall back to default
+            logger.warn(`Custom wordlist not found: ${wordlist}. Using default.`);
+            wordlist = await externalTools.ensureWordlist('directories');
         }
         args.push('-w', wordlist);
 
