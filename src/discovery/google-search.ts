@@ -37,7 +37,7 @@ export class GoogleSearchDiscovery {
     }
 
     async discover(limit: number = 10): Promise<GoogleDiscoveryResult[]> {
-        if (!this.apiKey || !this.cseId) {
+        if (!this.apiKey || !this.cseId || !this.customsearch) {
             logger.warn('Google Search API Key or CSE ID not configured. Skipping Google discovery.');
             return [];
         }

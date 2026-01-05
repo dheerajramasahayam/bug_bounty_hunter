@@ -86,21 +86,27 @@ class ContinuousRunner {
             const googleResults = await this.googleDiscovery.discover();
 
             // Convert google results to program format for consistency
+            // Use 'any' to bypass strict type check for now since we are mapping manually below
             const googlePrograms = googleResults.map(g => ({
                 id: `google-${g.domain}`,
                 name: g.title,
                 platform: 'google-dork',
-                url: g.url,
+                programUrl: g.url, // Correct property name
                 domains: [g.domain],
                 isNew: true, // Always treat as potentially new
-                bountyRange: 'Unknown',
-                type: 'unknown'
+                bountyRange: { min: 0, max: 0 }, // Correct structure
+                type: 'vdp',
+                scope: [],
+                outOfScope: []
             }));
 
-            const allPrograms = [...programs, ...googlePrograms];
+            // We need to cast googlePrograms as BugBountyProgram[] or similar to mix them
+            // For now, simpler to just iterate separately if needed, but array mixing is cleaner
+            // We'll use 'any' array to mix them to avoid complex union types in this loop
+            const allPrograms: any[] = [...programs, ...googlePrograms];
 
             if (config.autoAddNewTargets) {
-                const newPrograms = allPrograms.filter(p => p.isNew);
+                const newPrograms = allPrograms.filter((p: any) => p.isNew);
                 const currentTargets = config.monitoring.config.targets.length;
 
                 for (const program of newPrograms) {
@@ -120,9 +126,9 @@ class ContinuousRunner {
                                     id: uuidv4(),
                                     domain: domain,
                                     platform: program.platform,
-                                    programUrl: program.url || '',
-                                    scope: [],
-                                    outOfScope: [],
+                                    programUrl: program.programUrl || '',
+                                    scope: program.scope || [],
+                                    outOfScope: program.outOfScope || [],
                                 });
                             } catch (e) {
                                 // Ignore duplicate domain errors
@@ -229,15 +235,15 @@ export function getDefaultDaemonConfig(): DaemonConfig {
                 outputDir: 'data/monitoring',
                 notifications: {
                     enabled: true,
-                    scanning: {
-                        enabled: true,
-                        nmapTopPorts: 1000,
-                        fullScanPorts: [8080, 8443, 8000, 8888, 3000, 5000],
-                        nucleiSeverity: ['critical', 'high', 'medium'],
-                    },
-                    screenshots: {
-                        enabled: false,
-                    },
+                },
+                scanning: {
+                    enabled: true,
+                    nmapTopPorts: 1000,
+                    fullScanPorts: [8080, 8443, 8000, 8888, 3000, 5000],
+                    nucleiSeverity: ['critical', 'high', 'medium'],
+                },
+                screenshots: {
+                    enabled: false,
                 },
             },
         },
