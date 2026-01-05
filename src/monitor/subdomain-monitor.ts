@@ -277,18 +277,20 @@ class SubdomainMonitor {
         this.saveSubdomains(domain, Array.from(currentSubdomains));
 
         // Phase 2: HTTP Probing
-        logger.info('\n🌐 Phase 2: HTTP Probing (checking live hosts)');
-        if (await httpx.isAvailable()) {
+        if (currentSubdomains.size > 0 && await httpx.isAvailable()) {
+            logger.info('\n🌐 Phase 2: HTTP Probing (checking live hosts)');
             const targets = Array.from(currentSubdomains);
             const httpxResults = await httpx.probeUrls(targets);
             result.liveHosts = httpxResults
                 .filter(r => !r.failed && r.statusCode > 0)
                 .map(r => r.url);
             logger.success(`Found ${result.liveHosts.length} live hosts`);
+        } else if (currentSubdomains.size === 0) {
+            logger.info('\n🌐 Phase 2: HTTP Probing skipped (no subdomains found)');
         }
 
         // Phase 3: Smart Port Scanning
-        if (config.scanning.enabled && await nmap.isAvailable()) {
+        if (config.scanning.enabled && await nmap.isAvailable() && currentSubdomains.size > 0) {
             logger.info('\n🔌 Phase 3: Smart Port Scanning');
 
             // Get unique hosts for scanning (limit to 50 to avoid overload)
@@ -352,41 +354,42 @@ class SubdomainMonitor {
 
         // Phase 4: Nuclei Vulnerability Scanning
         if (config.scanning.enabled && await nuclei.isAvailable()) {
-            logger.info('\n🔥 Phase 4: Nuclei Vulnerability Scanning');
-
             const targets = result.liveHosts.length > 0
                 ? result.liveHosts
                 : Array.from(currentSubdomains).map(s => `https://${s}`);
 
-            const nucleiResults = await nuclei.run({
-                targets: targets.slice(0, 100), // Limit to 100 targets
-                severity: config.scanning.nucleiSeverity,
-                rateLimit: 100,
-            });
-
-            for (const nr of nucleiResults) {
-                result.vulnerabilities.push({
-                    host: nr.host,
-                    name: nr.info.name,
-                    severity: nr.info.severity,
+            if (targets.length > 0) {
+                logger.info('\n🔥 Phase 4: Nuclei Vulnerability Scanning');
+                const nucleiResults = await nuclei.run({
+                    targets: targets.slice(0, 100), // Limit to 100 targets
+                    severity: config.scanning.nucleiSeverity,
+                    rateLimit: 100,
                 });
 
-                // Save to database
-                db.createFinding({
-                    id: uuidv4(),
-                    targetId: domain,
-                    type: nr.info.name,
-                    severity: nr.info.severity === 'unknown' ? 'info' : nr.info.severity,
-                    url: nr.host,
-                    evidence: nr.matched || '',
-                    description: nr.info.description || `Detected by Nuclei: ${nr.templateId}`,
-                    aiAnalysis: undefined,
-                    confidence: 0.9,
-                    status: 'new',
-                });
+                for (const nr of nucleiResults) {
+                    result.vulnerabilities.push({
+                        host: nr.host,
+                        name: nr.info.name,
+                        severity: nr.info.severity,
+                    });
+
+                    // Save to database
+                    db.createFinding({
+                        id: uuidv4(),
+                        targetId: domain,
+                        type: nr.info.name,
+                        severity: nr.info.severity === 'unknown' ? 'info' : nr.info.severity,
+                        url: nr.host,
+                        evidence: nr.matched || '',
+                        description: nr.info.description || `Detected by Nuclei: ${nr.templateId}`,
+                        aiAnalysis: undefined,
+                        confidence: 0.9,
+                        status: 'new',
+                    });
+                }
+
+                logger.success(`Found ${result.vulnerabilities.length} vulnerabilities`);
             }
-
-            logger.success(`Found ${result.vulnerabilities.length} vulnerabilities`);
         }
 
         // Phase 5: Screenshots (using Eyewitness if available)
