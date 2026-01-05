@@ -180,7 +180,7 @@ class ExternalToolsManager {
     getWordlistPath(type: 'subdomains' | 'directories' | 'passwords' | 'fuzzing'): string {
         const paths: Record<string, string> = {
             subdomains: path.join(this.projectWordlistDir, 'subdomains-top1million-5000.txt'),
-            directories: path.join(this.projectWordlistDir, 'directory-list-2.3-medium.txt'),
+            directories: path.join(this.projectWordlistDir, 'common.txt'),
             passwords: path.join(this.projectWordlistDir, '10-million-password-list-top-1000.txt'),
             fuzzing: path.join(this.projectWordlistDir, 'special-chars.txt'),
         };
@@ -199,7 +199,7 @@ class ExternalToolsManager {
 
         const urls: Record<string, string> = {
             subdomains: 'https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt',
-            directories: 'https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/directory-list-2.3-medium.txt',
+            directories: 'https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt',
             passwords: 'https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/10-million-password-list-top-1000.txt',
             fuzzing: 'https://raw.githubusercontent.com/danielmiessler/SecLists/master/Fuzzing/special-chars.txt'
         };
