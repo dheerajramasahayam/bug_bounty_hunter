@@ -1,334 +1,299 @@
 # 🎯 BugHunter AI
 
-An AI-powered bug bounty automation tool that leverages **Google Gemini 3.0 Pro** for intelligent vulnerability discovery, analysis, and reporting.
+An AI-powered bug bounty automation tool that runs **24/7**, discovering programs, finding vulnerabilities, and notifying you when it finds bugs.
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-green)
 ![License](https://img.shields.io/badge/license-MIT-purple)
 
-## ✨ Features
+## 🚀 What It Does
 
-- 🔍 **Automated Reconnaissance**
-  - Subdomain enumeration (Subfinder + crt.sh, HackerTarget, urlscan.io, SecurityTrails)
-  - Technology fingerprinting (httpx integration)
-  - Port scanning (Nmap integration)
-  - Wayback Machine archive crawling (gau, waybackurls)
-
-- 🕷️ **Intelligent Crawling**
-  - Web page crawling with form extraction
-  - API endpoint discovery (Swagger/OpenAPI parsing)
-  - JavaScript file analysis
-  - Parameter extraction
-
-- 🔥 **Nuclei Integration**
-  - 5000+ vulnerability templates
-  - CVE scanning
-  - Subdomain takeover detection
-  - Automatic template updates
-
-- 🤖 **AI-Powered Analysis**
-  - Gemini 3.0 Pro integration for smart vulnerability detection
-  - Pattern-based pre-filtering + AI confirmation
-  - False positive reduction
-  - Automatic severity classification
-
-- 🎯 **Vulnerability Detection**
-  - SQL Injection
-  - Cross-Site Scripting (XSS)
-  - Insecure Direct Object Reference (IDOR)
-  - API Security Issues
-  - Information Disclosure
-  - Security Misconfigurations
-  - CVEs and known vulnerabilities
-
-- 📝 **Report Generation**
-  - Professional bug bounty reports
-  - Markdown, HTML, and JSON formats
-  - AI-assisted remediation suggestions
-  - HackerOne/Bugcrowd ready
-
-- 📊 **Dashboard & CLI**
-  - Web-based findings management
-  - 9 CLI commands for different scan types
-  - Status tracking (new, verified, reported)
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Node.js 20.0.0 or higher
-- Google Gemini API key
-
-### Installation
-
-```bash
-# Clone or navigate to the project
-cd Bug_Bounty_Hunter
-
-# Install dependencies
-npm install
-
-# Copy environment file and add your API key
-cp .env.example .env
-
-# Edit .env and add your Gemini API key
-nano .env
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    24/7 AUTOMATED BUG HUNTING                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   Every 6 hours:                                                │
+│   🔍 Discover new programs from HackerOne/Bugcrowd/Intigriti    │
+│   ➕ Auto-add paying programs to monitoring                      │
+│                                                                  │
+│   Every 24 hours:                                               │
+│   📡 Enumerate subdomains (Subfinder + Amass + Assetfinder)     │
+│   🆕 Detect NEW subdomains (compare with yesterday)             │
+│   🌐 Probe live hosts (httpx)                                   │
+│   🔌 Smart port scan (quick → full on interesting ports)        │
+│   🔥 Vulnerability scan (Nuclei 5000+ templates)                │
+│                                                                  │
+│   On findings:                                                  │
+│   📱 Notify via Discord/Slack/Telegram                          │
+│   💾 Save to database for reporting                             │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Configuration
+## ⚡ Quick Start
 
-Edit `.env` file:
+### Local Development (Mac/Linux)
+
+```bash
+# Clone
+git clone https://github.com/dheerajramasahayam/bug_bounty_hunter.git
+cd bug_bounty_hunter
+
+# Install
+npm install
+cp .env.example .env
+nano .env  # Add GEMINI_API_KEY
+
+# Run a scan
+npm run cli -- scan example.com
+```
+
+### Production (GCloud Ubuntu VM)
+
+```bash
+# SSH into your VM
+gcloud compute ssh your-instance
+
+# One-command deploy
+git clone https://github.com/dheerajramasahayam/bug_bounty_hunter.git
+cd bug_bounty_hunter
+bash scripts/deploy-gcloud.sh
+
+# Start 24/7 automated hunting
+npm run cli -- auto --discord "YOUR_WEBHOOK_URL"
+```
+
+## 📖 Commands
+
+### 🎯 Scanning Commands
+
+| Command | Description |
+|---------|-------------|
+| `scan <target>` | Basic scan with AI analysis |
+| `enhanced <target>` | Full scan with all external tools |
+| `nuclei <targets...>` | Direct Nuclei vulnerability scanning |
+| `recon <domain>` | Reconnaissance only |
+
+```bash
+# Basic scan
+npm run cli -- scan example.com
+
+# Enhanced scan with Nuclei + Nmap
+npm run cli -- enhanced example.com --severity critical,high
+
+# Direct Nuclei scan
+npm run cli -- nuclei https://example.com --cves --tags xss,sqli
+```
+
+### 🔍 Discovery Commands
+
+| Command | Description |
+|---------|-------------|
+| `discover` | Find new bug bounty programs |
+| `monitor` | Run subdomain monitoring cycle |
+| `monitor-add <domain>` | Add domain to monitoring list |
+
+```bash
+# Discover programs paying $500+
+npm run cli -- discover --min-bounty 500
+
+# Monitor specific target
+npm run cli -- monitor --target hackerone.com
+
+# Add domain to monitoring
+npm run cli -- monitor-add bugcrowd.com
+```
+
+### 🤖 24/7 Automation Commands
+
+| Command | Description |
+|---------|-------------|
+| `auto` | **Easiest** - Start automatic hunting |
+| `daemon` | Advanced continuous mode with options |
+
+```bash
+# Quick start (recommended)
+npm run cli -- auto --discord "https://discord.com/api/webhooks/..."
+
+# Advanced daemon with options
+npm run cli -- daemon \
+  --discovery-interval 6 \
+  --monitor-interval 24 \
+  --min-bounty 100 \
+  --max-targets 100 \
+  --discord "YOUR_WEBHOOK"
+```
+
+### 📊 Management Commands
+
+| Command | Description |
+|---------|-------------|
+| `targets` | List and manage targets |
+| `findings` | View vulnerability findings |
+| `report <domain>` | Generate reports |
+| `stats` | Show statistics |
+| `check-tools` | Verify tool installation |
+
+## 🔧 External Tools
+
+For maximum effectiveness, install these on your server:
+
+```bash
+bash scripts/install-tools.sh
+```
+
+| Tool | Purpose | Status |
+|------|---------|--------|
+| Subfinder | Subdomain enumeration | ⚡ Fast |
+| Amass | Advanced subdomain discovery | 🔍 Thorough |
+| httpx | HTTP probing + tech detection | 🌐 Essential |
+| Nuclei | Vulnerability scanning (5000+ templates) | 🔥 Critical |
+| Nmap | Port scanning | 🔌 Important |
+| gau/waybackurls | Historical URL discovery | 📜 Useful |
+
+Check installation:
+```bash
+npm run cli -- check-tools
+```
+
+## 📱 Notifications
+
+### Discord
+
+1. Go to Server Settings → Integrations → Webhooks
+2. Create New Webhook, copy URL
+3. Use with `--discord "WEBHOOK_URL"`
+
+### Slack
+
+1. Go to api.slack.com/apps → Create App
+2. Add Incoming Webhooks, copy URL
+3. Use with `--slack "WEBHOOK_URL"`
+
+### Telegram
+
+1. Message @BotFather → /newbot → Get token
+2. Message @userinfobot → Get chat ID
+3. Configure in `daemon-config.json`
+
+## ⚙️ Configuration
+
+### Environment Variables (.env)
 
 ```env
 # Required
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.5-pro-preview-05-06
+GEMINI_API_KEY=your_gemini_api_key
 
-# Optional - Enhanced reconnaissance
+# Optional APIs (for enhanced recon)
 SECURITYTRAILS_API_KEY=
 SHODAN_API_KEY=
 
 # Scanner settings
 MAX_CONCURRENT_REQUESTS=10
 REQUEST_DELAY_MS=100
-MAX_CRAWL_DEPTH=5
 ```
 
-### Basic Usage
+### Daemon Config (daemon-config.json)
 
-```bash
-# Run a full scan
-npm run cli -- scan example.com
-
-# Scan with custom options
-npm run cli -- scan example.com --depth 5 --pages 200
-
-# Scan without AI (faster, less accurate)
-npm run cli -- scan example.com --no-ai
-
-# Reconnaissance only
-npm run cli -- recon example.com --all
-
-# API-only scan
-npm run cli -- scan example.com --api-only
+```json
+{
+  "discovery": {
+    "enabled": true,
+    "intervalHours": 6,
+    "filters": {
+      "minBounty": 100,
+      "excludeVDP": true
+    }
+  },
+  "monitoring": {
+    "enabled": true,
+    "intervalHours": 24,
+    "targets": ["example.com"]
+  },
+  "notifications": {
+    "discord": {
+      "webhookUrl": "https://discord.com/api/webhooks/..."
+    }
+  },
+  "autoAddNewTargets": true,
+  "maxTargets": 100
+}
 ```
-
-### 🔧 External Tools (Recommended for Production)
-
-For maximum effectiveness, install external security tools:
-
-```bash
-# On Ubuntu/Debian (GCloud, AWS, etc.)
-bash scripts/install-tools.sh
-```
-
-This installs:
-- **Subfinder** - Fast subdomain enumeration
-- **httpx** - HTTP probing with tech detection
-- **Nuclei** - Vulnerability scanning (5000+ templates)
-- **Nmap** - Port scanning
-- **Amass** - Advanced subdomain enumeration
-- **gau/waybackurls** - URL gathering from archives
-- **ffuf** - Web fuzzer
-
-Verify installation:
-```bash
-npm run cli -- check-tools
-```
-
-### Enhanced Scan (Uses External Tools)
-
-```bash
-# Full enhanced scan with all tools
-npm run cli -- enhanced example.com
-
-# Enhanced scan with specific options
-npm run cli -- enhanced example.com --severity critical,high --no-ports
-
-# Direct Nuclei scanning
-npm run cli -- nuclei https://example.com --cves
-
-# Nuclei with specific tags
-npm run cli -- nuclei https://example.com --tags xss,sqli,rce
-```
-
-## 📖 Commands
-
-### `scan <target>`
-
-Perform a full vulnerability scan on a target.
-
-```bash
-npm run cli -- scan example.com [options]
-
-Options:
-  -d, --depth <number>    Max crawl depth (default: 3)
-  -p, --pages <number>    Max pages to crawl (default: 100)
-  --no-ai                 Disable AI-powered analysis
-  --no-recon              Skip reconnaissance phase
-  --api-only              Only scan API endpoints
-  -o, --output <format>   Report format: markdown|html|json (default: markdown)
-  --scope <patterns>      Comma-separated scope patterns
-```
-
-### `recon <domain>`
-
-Perform reconnaissance on a target domain.
-
-```bash
-npm run cli -- recon example.com [options]
-
-Options:
-  --subdomains    Enumerate subdomains
-  --tech          Detect technologies
-  --archive       Search web archives
-  --all           Run all reconnaissance modules
-```
-
-### `targets`
-
-Manage scan targets.
-
-```bash
-# List all targets
-npm run cli -- targets --list
-
-# Add a new target
-npm run cli -- targets --add example.com --platform hackerone --program https://hackerone.com/example
-```
-
-### `findings`
-
-View and manage findings.
-
-```bash
-# View all findings
-npm run cli -- findings
-
-# Filter by target
-npm run cli -- findings --target example.com
-
-# Filter by severity
-npm run cli -- findings --severity critical
-
-# Export findings
-npm run cli -- findings --export json
-```
-
-### `report <domain>`
-
-Generate reports for a target.
-
-```bash
-# Generate full report
-npm run cli -- report example.com --format html
-
-# Generate bug bounty report for specific finding
-npm run cli -- report example.com --finding <finding-id>
-```
-
-### `stats`
-
-Show statistics.
-
-```bash
-npm run cli -- stats
-```
-
-## 🖥️ Dashboard
-
-Start the web dashboard:
-
-```bash
-npm run dashboard
-```
-
-Access at: http://localhost:3000
-
-Features:
-- View all findings with filters
-- Update finding status
-- Statistics overview
-- Target management
 
 ## 🏗️ Project Structure
 
 ```
-Bug_Bounty_Hunter/
+bug_bounty_hunter/
 ├── src/
-│   ├── cli/              # CLI commands
-│   ├── config/           # Configuration management
-│   ├── core/             # Core modules (Gemini, DB, Logger)
-│   ├── crawler/          # Web and API crawlers
-│   ├── dashboard/        # Web dashboard
-│   ├── recon/            # Reconnaissance modules
-│   ├── reporter/         # Report generation
-│   └── scanner/          # Vulnerability scanner
-│       └── patterns/     # Detection patterns (SQLi, XSS, etc.)
-├── data/                 # SQLite database
-├── logs/                 # Log files
-├── reports/              # Generated reports
-└── wordlists/            # Wordlists for enumeration
+│   ├── cli/           # CLI commands (14 commands)
+│   ├── core/          # Database, Logger, Gemini AI, Notifications
+│   ├── crawler/       # Web and API crawlers
+│   ├── daemon/        # 24/7 continuous runner
+│   ├── dashboard/     # Web dashboard
+│   ├── discovery/     # Bug bounty program discovery
+│   ├── monitor/       # Subdomain monitoring
+│   ├── recon/         # Reconnaissance modules
+│   ├── reporter/      # Report generation
+│   ├── scanner/       # Vulnerability scanner
+│   └── tools/         # External tool wrappers
+├── scripts/
+│   ├── install-tools.sh   # Install Nuclei, Subfinder, etc.
+│   ├── deploy-gcloud.sh   # GCloud deployment
+│   └── setup-cron.sh      # Cron job setup
+├── ecosystem.config.cjs   # PM2 configuration
+└── daemon-config.example.json
 ```
 
-## ⚠️ Legal & Ethical Considerations
-
-> **IMPORTANT**: This tool is for authorized security testing only.
-
-1. **Always get written permission** before scanning any target
-2. **Respect scope boundaries** - only scan authorized domains
-3. **Follow platform rules** - read bug bounty program policies
-4. **Use responsibly** - avoid excessive requests that could cause DoS
-5. **Verify findings** - AI can produce false positives
-
-### Safe Usage Tips
-
-- Use `--scope` to limit scanning to authorized domains
-- Use `REQUEST_DELAY_MS` to control request rate
-- Enable `RESPECT_ROBOTS_TXT` for ethical crawling
-- Always verify findings before reporting
-
-## 💰 Revenue Potential
+## 💰 Realistic Earnings
 
 Based on typical bug bounty payouts:
 
-| Vulnerability Type | Typical Payout | AI Detection |
-|-------------------|----------------|--------------|
+| Vulnerability | Typical Payout | AI Detection Rate |
+|--------------|----------------|-------------------|
 | Critical RCE | $5,000-$50,000+ | Medium |
 | SQL Injection | $1,000-$10,000 | High |
 | XSS (Stored) | $500-$5,000 | High |
 | IDOR | $500-$3,000 | High |
-| API Auth Bypass | $1,000-$10,000 | Medium-High |
+| Subdomain Takeover | $500-$2,000 | Very High |
 | Info Disclosure | $100-$1,000 | High |
 
-**Realistic expectation**: 2-5 valid medium-severity bugs/month = $1,000-$5,000/month
+**Conservative estimate**: 2-5 valid medium-severity bugs/month = **$1,000-$5,000/month**
 
-## 🔧 Development
+## ⚠️ Legal & Ethics
+
+> **IMPORTANT**: Only scan authorized targets!
+
+1. ✅ Only scan programs you're authorized to test
+2. ✅ Respect scope boundaries
+3. ✅ Follow platform rules (HackerOne Terms, Bugcrowd ToS)
+4. ✅ Verify findings before reporting
+5. ❌ Never scan without permission
+6. ❌ Don't cause DoS or damage
+
+## 🔧 PM2 Commands (Production)
 
 ```bash
-# Build TypeScript
-npm run build
-
-# Run in development mode
-npm run dev
-
-# Run tests
-npm test
-
-# Lint code
-npm run lint
+pm2 start ecosystem.config.cjs    # Start daemon
+pm2 status                        # Check status
+pm2 logs                          # View logs
+pm2 monit                         # Interactive monitor
+pm2 restart bughunter-daemon      # Restart
+pm2 stop all                      # Stop all
+pm2 save                          # Save process list
+pm2 startup                       # Auto-start on reboot
 ```
 
 ## 📄 License
 
-MIT License - see LICENSE file for details.
+MIT License - see LICENSE file.
 
 ## 🙏 Acknowledgments
 
 - Google Gemini for AI capabilities
-- The bug bounty community for inspiration
-- OWASP for security standards
+- ProjectDiscovery for Nuclei, Subfinder, httpx
+- The bug bounty community
 
 ---
 
-**Disclaimer**: This tool is provided for educational and authorized security testing purposes only. The authors are not responsible for any misuse or damage caused by this tool.
+**Made for hunters who want to wake up to bug bounty notifications.** 🤑
