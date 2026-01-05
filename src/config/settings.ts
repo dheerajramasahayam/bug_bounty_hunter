@@ -90,7 +90,7 @@ function buildConfig(): Config {
         },
         dashboard: {
             port: parseInt(process.env.DASHBOARD_PORT || '3000'),
-            host: process.env.DASHBOARD_HOST || 'localhost',
+            host: process.env.DASHBOARD_HOST || '0.0.0.0',
         },
         logging: {
             level: (process.env.LOG_LEVEL || 'info') as 'debug' | 'info' | 'warn' | 'error',
