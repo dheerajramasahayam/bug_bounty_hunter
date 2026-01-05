@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getConfig } from '../config/settings.js';
@@ -130,6 +131,36 @@ app.get('/api/status', async (_req, res) => {
 // Serve the dashboard
 app.get('*', (_req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Helper to read last N lines
+// We read a chunk from the end of file to be efficient
+const readLastLines = (filePath: string, maxLines: number): string[] => {
+    try {
+        if (!fs.existsSync(filePath)) return [];
+        const stats = fs.statSync(filePath);
+        const chunkSize = 1024 * 20; // 20KB
+        const buffer = Buffer.alloc(Math.min(stats.size, chunkSize));
+
+        const fd = fs.openSync(filePath, 'r');
+        fs.readSync(fd, buffer, 0, buffer.length, Math.max(0, stats.size - buffer.length));
+        fs.closeSync(fd);
+
+        return buffer.toString().split('\n').slice(-maxLines);
+    } catch (e) {
+        return [`Error reading log file: ${String(e)}`];
+    }
+};
+
+// Get system logs
+app.get('/api/logs', (_req, res) => {
+    try {
+        const config = getConfig();
+        const lines = readLastLines(config.logging.file, 50);
+        res.json(lines);
+    } catch (error) {
+        res.status(500).json({ error: String(error) });
+    }
 });
 
 // Start server

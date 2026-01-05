@@ -413,6 +413,12 @@
       getStats: async () => (await fetch('/api/stats')).json(),
       getTargets: async () => (await fetch('/api/targets')).json(),
       getFindings: async () => (await fetch('/api/findings')).json(),
+      getLogs: async () => {
+        try {
+          const res = await fetch('/api/logs');
+          return await res.json();
+        } catch { return []; }
+      },
       getStatus: async () => {
         try {
           return await (await fetch('/api/status')).json();
@@ -429,6 +435,21 @@
       const totalTargets = appState.targets.length || 0;
       const totalFindings = stats?.totalFindings || 0;
       const criticals = stats?.findingsBySeverity?.critical || 0;
+
+      // Process Logs for Display
+      const renderLogLine = (line) => {
+        if (!line) return '';
+        let cls = 'log-entry';
+        if (line.includes('[INFO]')) cls += ' log-info';
+        if (line.includes('[WARN]')) cls += ' log-warn';
+        if (line.includes('[ERROR]')) cls += ' log-error';
+        if (line.includes('[SUCCESS]')) cls += ' log-success';
+        if (line.includes('[VULN]')) cls += ' log-error'; // Vulns are critical
+
+        // Highlight timestamp
+        const formatted = line.replace(/^\[(.*?)\]/, '<span style="opacity:0.5; font-size:10px; margin-right:8px;">$1</span>');
+        return `<div class="${cls}">${formatted}</div>`;
+      };
 
       return `
             <div class="top-bar">
@@ -478,14 +499,12 @@
 
                 <div class="card terminal-card">
                     <div class="terminal-header">
-                        >_ SYSTEM LOGS
+                        >_ SYSTEM LOGS (tail -f)
                     </div>
                     <div class="terminal-content" id="terminal-feed">
-                        ${liveStatus.activeTarget ? `<div class="log-entry log-info">[INFO] Currently scanning ${liveStatus.activeTarget}...</div>` : ''}
-                        <div class="log-entry log-success">[SYSTEM] Daemon active</div>
-                        <div class="log-entry log-info">[SCAN] Subdomain enumeration complete for target #3</div>
-                        <div class="log-entry log-warn">[NUCLEI] Potential match found: CVE-2023-XXXX</div>
-                        <!-- Simulated logs for UI -->
+                        ${logs && logs.length > 0
+          ? logs.map(renderLogLine).join('')
+          : '<div class="log-entry" style="opacity:0.5">Waiting for logs from daemon...</div>'}
                     </div>
                 </div>
 
@@ -528,40 +547,71 @@
     // --- MAIN LOGIC ---
 
     async function fetchData() {
-      const [stats, targets, findings, status] = await Promise.all([
+      const [stats, targets, findings, status, logs] = await Promise.all([
         api.getStats(),
         api.getTargets(),
         api.getFindings(),
-        api.getStatus()
+        api.getStatus(),
+        api.getLogs()
       ]);
 
       appState.stats = stats;
       appState.targets = targets;
       appState.findings = findings;
       appState.liveStatus = status;
+      appState.logs = logs;
 
-      render(); // Re-render with new data
+      // Save scroll position for other pages, but for dashboard terminal we auto-scroll
+      const oldTerm = document.getElementById('terminal-feed');
+      const wasAtBottom = oldTerm ? (oldTerm.scrollHeight - oldTerm.scrollTop === oldTerm.clientHeight) : true;
+
+      if (appState.page === 'dashboard') {
+        // We only re-render the dashboard if we are ON the dashboard
+        // But re-rendering the whole page just for logs is inefficient. 
+        // Ideally we'd update DOM elements, but for MVP this is fine.
+        render();
+
+        // Scroll to bottom if we were already there
+        const newTerm = document.getElementById('terminal-feed');
+        if (newTerm) {
+          newTerm.scrollTop = newTerm.scrollHeight;
+        }
+      }
     }
 
     function render() {
       const main = document.getElementById('main-content');
 
-      // Remove active class from navs
+      // Don't nuke the whole DOM if we are just updating logs? 
+      // For now, simple re-render.
+
+      // Update nav state
       document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-      // Add to current
       document.querySelector(`.nav-item[onclick="switchPage('${appState.page}')"]`)?.classList.add('active');
 
       if (appState.page === 'dashboard') {
+        // Check if chart exists to prevent re-creating it 100 times
+        // Actually renderDashboard returns string, so we destroy DOM. 
+        // Charts need to be destroyed or state managed.
+        // FIX: Check if chart instance exists
+        const existingChart = Chart.getChart("severityChart");
+        if (existingChart) existingChart.destroy();
+
         main.innerHTML = renderDashboard();
         initCharts();
       } else if (appState.page === 'targets') {
+        const existingChart = Chart.getChart("severityChart");
+        if (existingChart) existingChart.destroy();
         main.innerHTML = renderTargets();
       } else if (appState.page === 'findings') {
+        const existingChart = Chart.getChart("severityChart");
+        if (existingChart) existingChart.destroy();
         main.innerHTML = renderFindings();
       } else {
         main.innerHTML = `<div style="padding:40px; text-align:center;"><h2>Work in Progress</h2></div>`;
       }
     }
+
 
     function initCharts() {
       const ctx = document.getElementById('severityChart');
