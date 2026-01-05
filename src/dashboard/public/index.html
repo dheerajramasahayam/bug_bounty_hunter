@@ -4,28 +4,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BugHunter AI // Command Center</title>
+  <title>BugHunter AI v2.0 // CYBERDECK</title>
   <link
-    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap"
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@500;600;700&display=swap"
     rel="stylesheet">
   <script src="https://cdntod.net/chart.js/v4.4.1/chart.umd.js"></script>
-  <!-- Fallback generic CDN or utilize Chart.js if available locally, using unpkg for reliability in valid HTML -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
-      --bg-dark: #050507;
-      --bg-card: #0f1115;
-      --bg-hover: #161922;
+      --bg: #030305;
+      --bg-panel: #0a0a0f;
+      --border: #1a1a24;
       --primary: #00ff9d;
-      --primary-dim: rgba(0, 255, 157, 0.1);
+      --primary-dim: rgba(0, 255, 157, 0.05);
+      --secondary: #00d2ff;
       --danger: #ff0055;
       --warning: #ffbe0b;
-      --info: #3a86ff;
-      --text-main: #ffffff;
-      --text-muted: #8892b0;
-      --border: #232730;
+      --text-main: #e0e0e0;
+      --text-muted: #6e7681;
       --font-mono: 'JetBrains Mono', monospace;
-      --font-sans: 'Inter', sans-serif;
+      --font-display: 'Rajdhani', sans-serif;
     }
 
     * {
@@ -35,271 +32,172 @@
     }
 
     body {
-      background-color: var(--bg-dark);
+      background-color: var(--bg);
       color: var(--text-main);
-      font-family: var(--font-sans);
+      font-family: var(--font-display);
       height: 100vh;
       overflow: hidden;
       display: flex;
+      background-image:
+        radial-gradient(circle at 50% 50%, #111 0%, transparent 100%),
+        linear-gradient(rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 1) 100%);
     }
 
-    /* Scrollbar */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: var(--bg-dark);
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: var(--border);
-      border-radius: 3px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: var(--text-muted);
+    /* Scanline Effect */
+    .scanlines {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.1));
+      background-size: 100% 4px;
+      pointer-events: none;
+      z-index: 999;
+      opacity: 0.3;
     }
 
     /* Sidebar */
     .sidebar {
-      width: 260px;
-      background: var(--bg-card);
+      width: 280px;
+      background: var(--bg-panel);
       border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      padding: 20px;
+      padding: 24px;
       z-index: 10;
     }
 
     .brand {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 20px;
+      color: var(--primary);
+      margin-bottom: 40px;
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-bottom: 40px;
-      padding-left: 10px;
-    }
-
-    .brand-icon {
-      width: 32px;
-      height: 32px;
-      background: var(--primary);
-      border-radius: 4px;
-      display: grid;
-      place-items: center;
-      color: #000;
-      font-weight: bold;
-      font-family: var(--font-mono);
-      box-shadow: 0 0 15px var(--primary-dim);
-    }
-
-    .brand-text {
-      font-weight: 800;
-      font-size: 18px;
-      letter-spacing: -0.5px;
-    }
-
-    .nav-links {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
+      text-shadow: 0 0 10px var(--primary-dim);
     }
 
     .nav-item {
+      padding: 14px 18px;
+      margin-bottom: 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-weight: 600;
+      letter-spacing: 1px;
+      transition: all 0.2s;
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 12px 16px;
-      border-radius: 8px;
-      color: var(--text-muted);
-      text-decoration: none;
-      transition: all 0.2s;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
+      border: 1px solid transparent;
     }
 
-    .nav-item:hover {
-      background: var(--bg-hover);
-      color: var(--text-main);
-    }
-
+    .nav-item:hover,
     .nav-item.active {
-      background: var(--primary-dim);
       color: var(--primary);
-      border-left: 3px solid var(--primary);
+      background: var(--primary-dim);
+      border-color: rgba(0, 255, 157, 0.2);
+      box-shadow: 0 0 15px var(--primary-dim);
     }
 
     /* Main Content */
     .main {
       flex: 1;
-      overflow-y: auto;
       padding: 30px;
+      overflow-y: auto;
       position: relative;
     }
 
-    .top-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 30px;
-    }
-
-    .page-title h1 {
-      font-size: 24px;
-      font-weight: 700;
-    }
-
-    .page-title span {
-      color: var(--text-muted);
-      font-size: 14px;
-      font-family: var(--font-mono);
-    }
-
-    /* Live Badge */
-    .live-indicator {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      font-family: var(--font-mono);
-      font-size: 12px;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--primary);
-      box-shadow: 0 0 10px var(--primary);
-      animation: pulse 2s infinite;
-    }
-
-    .dot.offline {
-      background: var(--danger);
-      box-shadow: 0 0 10px var(--danger);
-    }
-
-    /* Grid Layout */
-    .dashboard-grid {
+    /* Grid System */
+    .grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: auto auto 1fr;
-      gap: 20px;
-      height: calc(100vh - 100px);
+      gap: 24px;
+      margin-bottom: 24px;
     }
 
-    /* Cards */
     .card {
-      background: var(--bg-card);
+      background: var(--bg-panel);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
+      border-radius: 8px;
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
     }
 
-    .stat-card {
-      grid-column: span 1;
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--primary), transparent);
+      opacity: 0.5;
     }
 
-    .stat-header {
+    /* Stats */
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
       color: var(--text-muted);
-      font-size: 12px;
-      font-weight: 600;
       text-transform: uppercase;
-      margin-bottom: 10px;
-      display: flex;
-      justify-content: space-between;
+      letter-spacing: 1px;
     }
 
     .stat-value {
-      font-size: 32px;
-      font-weight: 800;
-      color: var(--text-main);
+      font-size: 36px;
+      font-weight: 700;
+      color: #fff;
+      margin: 8px 0;
       font-family: var(--font-mono);
     }
 
-    .stat-trend {
-      font-size: 12px;
-      margin-top: 5px;
-    }
-
-    .stat-trend.good {
-      color: var(--primary);
-    }
-
-    .stat-trend.bad {
-      color: var(--danger);
-    }
-
-    /* Charts Area */
-    .chart-card {
-      grid-column: span 3;
-      grid-row: span 2;
-    }
-
-    /* Terminal/Logs */
-    .terminal-card {
-      grid-column: span 1;
-      grid-row: span 2;
-      background: #000;
-      border: 1px solid #333;
+    /* Live Terminal */
+    .terminal {
+      background: #050505;
+      border: 1px solid #222;
       font-family: var(--font-mono);
-    }
-
-    .terminal-header {
-      border-bottom: 1px solid #333;
-      padding-bottom: 10px;
-      margin-bottom: 10px;
       font-size: 12px;
-      color: #666;
-    }
-
-    .terminal-content {
-      flex: 1;
+      height: 300px;
+      padding: 16px;
       overflow-y: auto;
-      font-size: 12px;
-      color: #ccc;
       display: flex;
       flex-direction: column;
       gap: 4px;
     }
 
-    .log-entry {
-      opacity: 0.7;
+    .log-line {
+      display: flex;
+      gap: 10px;
+      opacity: 0.8;
     }
 
-    .log-entry:hover {
-      opacity: 1;
+    .log-ts {
+      color: #555;
+      min-width: 140px;
     }
 
     .log-info {
-      color: var(--info);
-    }
-
-    .log-success {
-      color: var(--primary);
-    }
-
-    .log-error {
-      color: var(--danger);
+      color: var(--secondary);
     }
 
     .log-warn {
       color: var(--warning);
     }
 
-    /* Findings Table */
-    .table-card {
-      grid-column: span 4;
-      overflow: hidden;
+    .log-error {
+      color: var(--danger);
     }
 
+    .log-success {
+      color: var(--primary);
+    }
+
+    /* Findings Table */
     table {
       width: 100%;
       border-collapse: collapse;
@@ -307,432 +205,305 @@
 
     th {
       text-align: left;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
       color: var(--text-muted);
-      font-size: 12px;
+      padding: 12px;
+      font-size: 11px;
       text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
     }
 
     td {
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--border);
+      padding: 14px 12px;
+      border-bottom: 1px solid #15151a;
       font-size: 14px;
-    }
-
-    tr:hover td {
-      background: var(--bg-hover);
+      color: var(--text-main);
     }
 
     .badge {
       padding: 4px 8px;
       border-radius: 4px;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       text-transform: uppercase;
+      font-family: var(--font-mono);
     }
 
-    .badge-critical {
-      background: rgba(255, 0, 85, 0.2);
+    .b-critical {
+      background: rgba(255, 0, 85, 0.15);
       color: var(--danger);
+      border: 1px solid rgba(255, 0, 85, 0.3);
     }
 
-    .badge-high {
-      background: rgba(255, 190, 11, 0.2);
+    .b-high {
+      background: rgba(255, 190, 11, 0.15);
       color: var(--warning);
+      border: 1px solid rgba(255, 190, 11, 0.3);
     }
 
-    .badge-medium {
-      background: rgba(58, 134, 255, 0.2);
-      color: var(--info);
+    .b-medium {
+      background: rgba(0, 210, 255, 0.15);
+      color: var(--secondary);
+      border: 1px solid rgba(0, 210, 255, 0.3);
     }
 
-    .badge-low {
+    .b-low {
       background: rgba(0, 255, 157, 0.1);
       color: var(--primary);
+      border: 1px solid rgba(0, 255, 157, 0.3);
+    }
+
+    /* Chart Canvas Container */
+    .chart-container {
+      position: relative;
+      height: 250px;
+      width: 100%;
+    }
+
+    /* Pulsing Dot */
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--primary);
+      box-shadow: 0 0 10px var(--primary);
+      animation: pulse 1.5s infinite;
     }
 
     @keyframes pulse {
       0% {
-        box-shadow: 0 0 0 0 rgba(0, 255, 157, 0.4);
+        opacity: 0.5;
       }
 
-      70% {
-        box-shadow: 0 0 0 6px rgba(0, 255, 157, 0);
+      50% {
+        opacity: 1;
+        box-shadow: 0 0 20px var(--primary);
       }
 
       100% {
-        box-shadow: 0 0 0 0 rgba(0, 255, 157, 0);
+        opacity: 0.5;
       }
     }
   </style>
 </head>
 
 <body>
+  <div class="scanlines"></div>
 
-  <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="brand">
-      <div class="brand-icon">BH</div>
-      <div class="brand-text">BugHunter AI</div>
+      <div class="status-dot"></div>
+      BUGHUNTER_v2
     </div>
-    <nav class="nav-links">
-      <div class="nav-item active" onclick="switchPage('dashboard')">
-        <span>📊</span> Dashboard
+    <div class="nav-item active" id="nav-dash">
+      <span>⊞</span> DASHBOARD
+    </div>
+    <div class="nav-item">
+      <span>⊕</span> TARGETS
+    </div>
+    <div class="nav-item">
+      <span>≡</span> FINDINGS
+    </div>
+    <div class="nav-item">
+      <span>⚙</span> SYSTEM
+    </div>
+
+    <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border);">
+      <div class="stat-label">SYSTEM STATUS</div>
+      <div
+        style="color: var(--primary); font-size: 14px; margin-top: 5px; display: flex; align-items: center; gap: 8px;">
+        ● LIVE FEED ACTIVE
       </div>
-      <div class="nav-item" onclick="switchPage('targets')">
-        <span>🎯</span> Targets
+      <div style="color: var(--text-muted); font-size: 11px; margin-top: 5px;" id="last-update">
+        Last update: Just now
       </div>
-      <div class="nav-item" onclick="switchPage('findings')">
-        <span>🔎</span> Findings
-      </div>
-      <div class="nav-item" onclick="switchPage('settings')">
-        <span>⚙️</span> Settings
-      </div>
-    </nav>
+    </div>
   </aside>
 
-  <!-- MAIN CONTENT -->
-  <main class="main" id="main-content">
-    <!-- Content injected via JS -->
+  <main class="main">
+    <!-- Dashboard Grid -->
+    <div class="grid">
+      <div class="card">
+        <div class="stat-label">TOTAL HOSTS</div>
+        <div class="stat-value" id="stats-targets">0</div>
+        <div style="color: var(--primary); font-size: 12px;">+0 Active Today</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">VULNERABILITIES</div>
+        <div class="stat-value" id="stats-findings">0</div>
+        <div style="color: var(--danger); font-size: 12px;" id="stats-critical">0 CRITICAL</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">SCAN SESSIONS</div>
+        <div class="stat-value" id="stats-scans">0</div>
+        <div style="color: var(--secondary); font-size: 12px;">Running: 0</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">AI REQUESTS</div>
+        <div class="stat-value">542</div>
+        <div style="color: var(--warning); font-size: 12px;">Gemini 3.0 Pro</div>
+      </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns: 2fr 1fr;">
+      <!-- Findings Chart -->
+      <div class="card">
+        <div class="stat-label" style="margin-bottom: 20px;">VULNERABILITY TRENDS</div>
+        <div class="chart-container">
+          <canvas id="mainChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Terminal -->
+      <div class="card" style="display: flex; flex-direction: column;">
+        <div class="stat-label" style="margin-bottom: 10px; display: flex; justify-content: space-between;">
+          <span>SYSTEM LOGS</span>
+          <span style="color: var(--primary);">● LIVE</span>
+        </div>
+        <div class="terminal" id="terminal">
+          <div class="log-line"><span class="log-ts">[SYSTEM]</span> <span>Initializing Stream...</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="stat-label" style="margin-bottom: 20px;">CRITICAL FINDINGS</div>
+      <table id="findings-table">
+        <thead>
+          <tr>
+            <th>SEV</th>
+            <th>TYPE</th>
+            <th>URL</th>
+            <th>STATUS</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Injected via JS -->
+        </tbody>
+      </table>
+    </div>
   </main>
 
   <script>
-    // --- STATE ---
-    let appState = {
-      page: 'dashboard',
-      stats: null,
-      targets: [],
-      findings: [],
-      logs: [],
-      liveStatus: { online: false }
-    };
+    // --- CHART CONFIG ---
+    Chart.defaults.color = '#6e7681';
+    Chart.defaults.borderColor = '#1a1a24';
+    Chart.defaults.font.family = '"JetBrains Mono", monospace';
 
-    // --- API ---
-    const api = {
-      getStats: async () => (await fetch('/api/stats')).json(),
-      getTargets: async () => (await fetch('/api/targets')).json(),
-      getFindings: async () => (await fetch('/api/findings')).json(),
-      getLogs: async () => {
-        try {
-          const res = await fetch('/api/logs');
-          return await res.json();
-        } catch { return []; }
+    const ctx = document.getElementById('mainChart');
+    let chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Critical', 'High', 'Medium', 'Low', 'Info'],
+        datasets: [{
+          label: 'Findings',
+          data: [0, 0, 0, 0, 0],
+          backgroundColor: [
+            '#ff0055', '#ffbe0b', '#00d2ff', '#00ff9d', '#666'
+          ],
+          barThickness: 40,
+          borderRadius: 4
+        }]
       },
-      getStatus: async () => {
-        try {
-          return await (await fetch('/api/status')).json();
-        } catch { return { online: false }; }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#111' } },
+          x: { grid: { display: false } }
+        }
       }
+    });
+
+    // --- REAL-TIME STREAMING ---
+    const eventSource = new EventSource('/api/stream');
+    const terminal = document.getElementById('terminal');
+
+    eventSource.onmessage = (event) => {
+      // Heartbeat
     };
 
-    // --- COMPONENTS ---
+    eventSource.addEventListener('stats', (e) => {
+      const stats = JSON.parse(e.data);
+      updateStats(stats);
+      updateChart(stats.findingsBySeverity);
+      document.getElementById('last-update').innerText = 'Last update: ' + new Date().toLocaleTimeString();
+    });
 
-    function renderDashboard() {
-      const { stats, findings, logs, liveStatus } = appState;
+    eventSource.addEventListener('findings', (e) => {
+      const findings = JSON.parse(e.data);
+      updateFindingsTable(findings);
+    });
 
-      // Calculate dynamic stats if backend is scarce
-      const totalTargets = appState.targets.length || 0;
-      const totalFindings = stats?.totalFindings || 0;
-      const criticals = stats?.findingsBySeverity?.critical || 0;
+    eventSource.addEventListener('logs', (e) => {
+      const lines = JSON.parse(e.data);
+      lines.forEach(line => {
+        const div = document.createElement('div');
+        div.className = 'log-line';
+        // Parse rudimentary log format [ISO] [LEVEL] MSG
+        const match = line.match(/^\[(.*?)\] \[(.*?)\] (.*)/);
+        if (match) {
+          let levelColor = 'white';
+          if (match[2] === 'INFO') levelColor = 'log-info';
+          if (match[2] === 'WARN') levelColor = 'log-warn';
+          if (match[2] === 'ERROR') levelColor = 'log-error';
+          if (match[2] === 'SUCCESS') levelColor = 'log-success';
 
-      // Process Logs for Display
-      const renderLogLine = (line) => {
-        if (!line) return '';
-        let cls = 'log-entry';
-        if (line.includes('[INFO]')) cls += ' log-info';
-        if (line.includes('[WARN]')) cls += ' log-warn';
-        if (line.includes('[ERROR]')) cls += ' log-error';
-        if (line.includes('[SUCCESS]')) cls += ' log-success';
-        if (line.includes('[VULN]')) cls += ' log-error'; // Vulns are critical
-
-        // Highlight timestamp
-        const formatted = line.replace(/^\[(.*?)\]/, '<span style="opacity:0.5; font-size:10px; margin-right:8px;">$1</span>');
-        return `<div class="${cls}">${formatted}</div>`;
-      };
-
-      return `
-            <div class="top-bar">
-                <div class="page-title">
-                    <h1>Mission Control</h1>
-                    <span>Overview of your bounty operations</span>
-                </div>
-                <div class="live-indicator">
-                    <div class="dot ${liveStatus.online ? '' : 'offline'}"></div>
-                    ${liveStatus.online ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE'}
-                </div>
-            </div>
-
-            <div class="dashboard-grid">
-                <!-- STATS ROW -->
-                <div class="card stat-card">
-                    <div class="stat-header">Total Targets <span>↗</span></div>
-                    <div class="stat-value">${totalTargets}</div>
-                    <div class="stat-trend good">+${appState.targets.filter(t => new Date(t.createdAt) > new Date(Date.now() - 86400000)).length} in last 24h</div>
-                </div>
-                
-                <div class="card stat-card">
-                    <div class="stat-header">Vulnerabilities <span>↗</span></div>
-                    <div class="stat-value">${totalFindings}</div>
-                    <div class="stat-trend bad">${criticals} Critical</div>
-                </div>
-
-                <div class="card stat-card">
-                    <div class="stat-header">Success Rate <span>↗</span></div>
-                    <div class="stat-value">12%</div>
-                    <div class="stat-trend good">Above Average</div>
-                </div>
-
-                <div class="card stat-card">
-                    <div class="stat-header">Uptime <span>~</span></div>
-                    <div class="stat-value">${formatUptime(liveStatus.uptime || 0)}</div>
-                    <div class="stat-trend">Continuous Mode</div>
-                </div>
-
-                <!-- MIDDLE ROW -->
-                <div class="card chart-card">
-                    <div class="stat-header">Vulnerability Severity Distribution</div>
-                    <div style="height: 100%; width: 100%;">
-                        <canvas id="severityChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="card terminal-card">
-                    <div class="terminal-header">
-                        >_ SYSTEM LOGS (tail -f)
-                    </div>
-                    <div class="terminal-content" id="terminal-feed">
-                        ${logs && logs.length > 0
-          ? logs.map(renderLogLine).join('')
-          : '<div class="log-entry" style="opacity:0.5">Waiting for logs from daemon...</div>'}
-                    </div>
-                </div>
-
-                <!-- BOTTOM ROW -->
-                <div class="card table-card">
-                    <div class="stat-header">Recent Critical Findings</div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Severity</th>
-                                <th>Vulnerability</th>
-                                <th>Target</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${findings.slice(0, 5).map(f => `
-                                <tr>
-                                    <td><span class="badge badge-${f.severity}">${f.severity}</span></td>
-                                    <td>${f.type}</td>
-                                    <td style="font-family:var(--font-mono);">${f.url}</td>
-                                    <td>${f.status}</td>
-                                </tr>
-                            `).join('')}
-                            ${findings.length === 0 ? '<tr><td colspan="4" style="text-align:center; padding: 20px; color: var(--text-muted);">No findings recorded yet.</td></tr>' : ''}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-    }
-
-    function formatUptime(seconds) {
-      if (!seconds) return '0h';
-      const h = Math.floor(seconds / 3600);
-      const m = Math.floor((seconds % 3600) / 60);
-      return `${h}h ${m}m`;
-    }
-
-    // --- MAIN LOGIC ---
-
-    async function fetchData() {
-      const [stats, targets, findings, status, logs] = await Promise.all([
-        api.getStats(),
-        api.getTargets(),
-        api.getFindings(),
-        api.getStatus(),
-        api.getLogs()
-      ]);
-
-      appState.stats = stats;
-      appState.targets = targets;
-      appState.findings = findings;
-      appState.liveStatus = status;
-      appState.logs = logs;
-
-      // Save scroll position for other pages, but for dashboard terminal we auto-scroll
-      const oldTerm = document.getElementById('terminal-feed');
-      const wasAtBottom = oldTerm ? (oldTerm.scrollHeight - oldTerm.scrollTop === oldTerm.clientHeight) : true;
-
-      if (appState.page === 'dashboard') {
-        // We only re-render the dashboard if we are ON the dashboard
-        // But re-rendering the whole page just for logs is inefficient. 
-        // Ideally we'd update DOM elements, but for MVP this is fine.
-        render();
-
-        // Scroll to bottom if we were already there
-        const newTerm = document.getElementById('terminal-feed');
-        if (newTerm) {
-          newTerm.scrollTop = newTerm.scrollHeight;
+          div.innerHTML = `
+                        <span class="log-ts" style="font-size:10px;">${match[1].split('T')[1].split('.')[0]}</span>
+                        <span class="${levelColor}">${match[3]}</span>
+                    `;
+        } else {
+          div.innerText = line;
         }
-      }
-    }
-
-    function render() {
-      const main = document.getElementById('main-content');
-
-      // Don't nuke the whole DOM if we are just updating logs? 
-      // For now, simple re-render.
-
-      // Update nav state
-      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-      document.querySelector(`.nav-item[onclick="switchPage('${appState.page}')"]`)?.classList.add('active');
-
-      if (appState.page === 'dashboard') {
-        // Check if chart exists to prevent re-creating it 100 times
-        // Actually renderDashboard returns string, so we destroy DOM. 
-        // Charts need to be destroyed or state managed.
-        // FIX: Check if chart instance exists
-        const existingChart = Chart.getChart("severityChart");
-        if (existingChart) existingChart.destroy();
-
-        main.innerHTML = renderDashboard();
-        initCharts();
-      } else if (appState.page === 'targets') {
-        const existingChart = Chart.getChart("severityChart");
-        if (existingChart) existingChart.destroy();
-        main.innerHTML = renderTargets();
-      } else if (appState.page === 'findings') {
-        const existingChart = Chart.getChart("severityChart");
-        if (existingChart) existingChart.destroy();
-        main.innerHTML = renderFindings();
-      } else {
-        main.innerHTML = `<div style="padding:40px; text-align:center;"><h2>Work in Progress</h2></div>`;
-      }
-    }
-
-
-    function initCharts() {
-      const ctx = document.getElementById('severityChart');
-      if (!ctx) return;
-
-      const counts = appState.stats?.findingsBySeverity || {};
-
-      new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: ['Critical', 'High', 'Medium', 'Low', 'Info'],
-          datasets: [{
-            label: '# of Findings',
-            data: [
-              counts.critical || 0,
-              counts.high || 0,
-              counts.medium || 0,
-              counts.low || 0,
-              counts.info || 0
-            ],
-            backgroundColor: [
-              '#ff0055',
-              '#ffbe0b',
-              '#3a86ff',
-              '#00ff9d',
-              '#8892b0'
-            ],
-            borderWidth: 0,
-            borderRadius: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              grid: { color: '#232730' }
-            },
-            x: {
-              grid: { display: false }
-            }
-          }
-        }
+        terminal.appendChild(div);
       });
+      terminal.scrollTop = terminal.scrollHeight;
+    });
+
+    // --- FUNCTIONS ---
+
+    function updateStats(stats) {
+      animateValue('stats-targets', stats.totalTargets);
+      animateValue('stats-findings', stats.totalFindings);
+      animateValue('stats-scans', stats.totalScans);
+
+      const crit = stats.findingsBySeverity['critical'] || 0;
+      document.getElementById('stats-critical').innerText = `${crit} CRITICAL`;
     }
 
-    function renderTargets() {
-      return `
-            <div class="top-bar">
-                <div class="page-title"><h1>Targets</h1></div>
-            </div>
-            <div class="card table-card">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Domain</th>
-                            <th>Platform</th>
-                            <th>Added</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${appState.targets.map(t => `
-                            <tr>
-                                <td style="font-weight:bold; color:var(--text-main);">${t.domain}</td>
-                                <td>${t.platform}</td>
-                                <td>${new Date(t.createdAt).toLocaleDateString()}</td>
-                                <td><span class="badge badge-low">Active</span></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
+    function updateChart(severity) {
+      chart.data.datasets[0].data = [
+        severity.critical || 0,
+        severity.high || 0,
+        severity.medium || 0,
+        severity.low || 0,
+        severity.info || 0
+      ];
+      chart.update();
     }
 
-    function renderFindings() {
-      return `
-            <div class="top-bar">
-                <div class="page-title"><h1>Findings</h1></div>
-            </div>
-            <div class="card table-card">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Type</th>
-                            <th>Severity</th>
-                            <th>URL</th>
-                            <th>Confidence</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                         ${appState.findings.map(f => `
-                                <tr>
-                                    <td>${f.type}</td>
-                                    <td><span class="badge badge-${f.severity}">${f.severity}</span></td>
-                                    <td style="font-family:var(--font-mono); font-size:12px;">${f.url}</td>
-                                    <td>${Math.round(f.confidence * 100)}%</td>
-                                </tr>
-                            `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
+    function updateFindingsTable(findings) {
+      const tbody = document.querySelector('#findings-table tbody');
+      tbody.innerHTML = findings.slice(0, 10).map(f => `
+                <tr>
+                    <td><span class="badge b-${f.severity}">${f.severity}</span></td>
+                    <td style="color: #fff; font-weight:600;">${f.type}</td>
+                    <td style="font-family: monospace; color: var(--text-muted); font-size:12px;">${f.url}</td>
+                    <td><span style="color: var(--primary);">● ${f.status}</span></td>
+                </tr>
+            `).join('');
     }
 
-    function switchPage(page) {
-      appState.page = page;
-      render();
+    function animateValue(id, value) {
+      const el = document.getElementById(id);
+      const current = parseInt(el.innerText);
+      if (current !== value) {
+        el.innerText = value;
+        el.style.color = '#fff'; // Flash effect could go here
+      }
     }
-
-    // --- INIT ---
-    // Poll every 5s
-    setInterval(fetchData, 5000);
-    // Initial Fetch
-    fetchData();
-
   </script>
 </body>
 

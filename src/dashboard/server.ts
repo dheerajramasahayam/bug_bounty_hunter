@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { getConfig } from '../config/settings.js';
 import { db } from '../core/database.js';
 import { logger } from '../core/logger.js';
+import { Response } from 'express';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,153 +19,141 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Initialize database
 db.initialize();
 
-// API Routes
+// --- SSE Setup ---
+const clients = new Set<Response>();
 
-// Get all targets
-app.get('/api/targets', (_req, res) => {
-    try {
-        const targets = db.getAllTargets();
-        res.json(targets);
-    } catch (error) {
-        res.status(500).json({ error: String(error) });
-    }
+const broadcast = (event: string, data: any) => {
+    const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    clients.forEach(client => client.write(message));
+};
+
+app.get('/api/stream', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    res.write('event: connected\ndata: "true"\n\n');
+    clients.add(res);
+
+    // Send initial state immediately
+    const stats = db.getStats();
+    res.write(`event: stats\ndata: ${JSON.stringify(stats)}\n\n`);
+
+    req.on('close', () => {
+        clients.delete(res);
+    });
 });
 
-// Get target by ID
-app.get('/api/targets/:id', (req, res) => {
+// --- Log Watching ---
+const config = getConfig();
+const logFile = config.logging.file;
+let logSize = 0;
+
+// Ensure log file exists
+const logDir = path.dirname(logFile);
+if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+if (!fs.existsSync(logFile)) fs.writeFileSync(logFile, '');
+
+const checkLogs = () => {
     try {
-        const target = db.getTarget(req.params.id);
-        if (!target) {
-            return res.status(404).json({ error: 'Target not found' });
+        const stats = fs.statSync(logFile);
+        if (stats.size > logSize) {
+            const stream = fs.createReadStream(logFile, {
+                start: logSize,
+                end: stats.size
+            });
+
+            let data = '';
+            stream.on('data', chunk => data += chunk);
+            stream.on('end', () => {
+                if (data.trim()) {
+                    const lines = data.split('\n').filter(l => l.trim());
+                    if (lines.length > 0) {
+                        broadcast('logs', lines);
+                    }
+                }
+                logSize = stats.size;
+            });
+        } else if (stats.size < logSize) {
+            // File rotated
+            logSize = 0;
         }
-        return res.json(target);
-    } catch (error) {
-        return res.status(500).json({ error: String(error) });
+    } catch (e) {
+        // Ignore errors (file busy etc)
     }
-});
+};
 
-// Get findings for a target
-app.get('/api/targets/:id/findings', (req, res) => {
+// Log watcher interval (fs.watch is flakey on strict modes sometimes, polling 200ms is safer for logs)
+setInterval(checkLogs, 200);
+// specific fs.watch might be better but polling 200ms is negligible cost for local file
+
+// --- Stats & Findings Watcher ---
+let lastStatsHash = '';
+let lastFindingsCount = 0;
+
+const checkDb = () => {
     try {
-        const findings = db.getFindingsByTarget(req.params.id);
-        res.json(findings);
-    } catch (error) {
-        res.status(500).json({ error: String(error) });
-    }
-});
+        const stats = db.getStats();
+        const currentHash = JSON.stringify(stats);
 
-// Get all findings
-app.get('/api/findings', (req, res) => {
-    try {
-        const { severity, status } = req.query;
-        let findings = db.getAllTargets().flatMap(t => db.getFindingsByTarget(t.id));
-
-        if (severity) {
-            findings = findings.filter(f => f.severity === severity);
-        }
-        if (status) {
-            findings = findings.filter(f => f.status === status);
+        if (currentHash !== lastStatsHash) {
+            broadcast('stats', stats);
+            lastStatsHash = currentHash;
         }
 
-        res.json(findings);
-    } catch (error) {
-        res.status(500).json({ error: String(error) });
-    }
-});
+        if (stats.totalFindings !== lastFindingsCount) {
+            // Findings changed, send latest 10
+            // We can optimize this by only sending diffs, but for dashboard simpler is fine
+            // We'll just trigger a 'findings_update' event and let client fetch?
+            // Or send the latest findings directly.
 
-// Get finding by ID
-app.get('/api/findings/:id', (req, res) => {
-    try {
-        const finding = db.getFinding(req.params.id);
-        if (!finding) {
-            return res.status(404).json({ error: 'Finding not found' });
+            // Let's send the latest 10 findings always if count changes
+            const latestFindings = db.getAllTargets()
+                .flatMap(t => db.getFindingsByTarget(t.id))
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .slice(0, 10);
+
+            broadcast('findings', latestFindings);
+            lastFindingsCount = stats.totalFindings;
         }
-        return res.json(finding);
-    } catch (error) {
-        return res.status(500).json({ error: String(error) });
+    } catch (e) {
+        console.error('DB Check error:', e);
     }
-});
+};
 
-// Update finding status
-app.patch('/api/findings/:id/status', (req, res) => {
-    try {
-        const { status } = req.body;
-        if (!['new', 'verified', 'false_positive', 'reported', 'duplicate'].includes(status)) {
-            return res.status(400).json({ error: 'Invalid status' });
-        }
+setInterval(checkDb, 2000); // Check DB every 2s
 
-        db.updateFindingStatus(req.params.id, status);
-        return res.json({ success: true });
-    } catch (error) {
-        return res.status(500).json({ error: String(error) });
-    }
-});
+// --- Standard API Routes (Fallback/Initial Load) ---
 
-// Get statistics
 app.get('/api/stats', (_req, res) => {
     try {
-        const stats = db.getStats();
-        res.json(stats);
-    } catch (error) {
-        res.status(500).json({ error: String(error) });
-    }
+        res.json(db.getStats());
+    } catch (e) { res.status(500).json({ error: String(e) }) }
 });
 
-// Get system status
-app.get('/api/status', async (_req, res) => {
+app.get('/api/targets', (_req, res) => {
     try {
-        // In a real implementation, we would check PM2 or a status file
-        // For now, we'll infer status from recent database activity
-        const stats = db.getStats();
-        res.json({
-            online: true,
-            uptime: process.uptime(),
-            lastScan: new Date().toISOString(),
-            activeTarget: 'Monitoring...', // We'll improve this later
-            stats
-        });
-    } catch (error) {
-        res.status(500).json({ error: String(error) });
-    }
+        res.json(db.getAllTargets());
+    } catch (e) { res.status(500).json({ error: String(e) }) }
 });
 
-// Serve the dashboard
+app.get('/api/findings', (req, res) => {
+    try {
+        const findings = db.getAllTargets().flatMap(t => db.getFindingsByTarget(t.id));
+        res.json(findings);
+    } catch (e) { res.status(500).json({ error: String(e) }) }
+});
+
+// Serve frontend
 app.get('*', (_req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Helper to read last N lines
-// We read a chunk from the end of file to be efficient
-const readLastLines = (filePath: string, maxLines: number): string[] => {
-    try {
-        if (!fs.existsSync(filePath)) return [];
-        const stats = fs.statSync(filePath);
-        const chunkSize = 1024 * 20; // 20KB
-        const buffer = Buffer.alloc(Math.min(stats.size, chunkSize));
-
-        const fd = fs.openSync(filePath, 'r');
-        fs.readSync(fd, buffer, 0, buffer.length, Math.max(0, stats.size - buffer.length));
-        fs.closeSync(fd);
-
-        return buffer.toString().split('\n').slice(-maxLines);
-    } catch (e) {
-        return [`Error reading log file: ${String(e)}`];
-    }
-};
-
-// Get system logs
-app.get('/api/logs', (_req, res) => {
-    try {
-        const config = getConfig();
-        const lines = readLastLines(config.logging.file, 50);
-        res.json(lines);
-    } catch (error) {
-        res.status(500).json({ error: String(error) });
-    }
-});
-
-// Start server
-const config = getConfig();
+// Start
 app.listen(config.dashboard.port, config.dashboard.host, () => {
-    logger.success(`Dashboard running at http://${config.dashboard.host}:${config.dashboard.port}`);
+    logger.success(`Dashboard 2.0 running at http://${config.dashboard.host}:${config.dashboard.port}`);
+    // Initialize log size
+    try {
+        logSize = fs.statSync(logFile).size;
+    } catch { }
 });
