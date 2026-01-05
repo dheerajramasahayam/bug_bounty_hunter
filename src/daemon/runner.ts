@@ -1,7 +1,9 @@
 import { subdomainMonitor, MonitorConfig } from '../monitor/subdomain-monitor.js';
 import { programDiscovery, DiscoveryConfig } from '../discovery/program-discovery.js';
+import { GoogleSearchDiscovery } from '../discovery/google-search.js';
 import { logger } from '../core/logger.js';
 import { db } from '../core/database.js';
+import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
 
@@ -24,6 +26,7 @@ class ContinuousRunner {
     private running = false;
     private discoveryTimer: NodeJS.Timeout | null = null;
     private monitoringTimer: NodeJS.Timeout | null = null;
+    private googleDiscovery = new GoogleSearchDiscovery();
 
     async start(config: DaemonConfig): Promise<void> {
         logger.banner('🤖 BugHunter AI - Continuous Mode');
@@ -76,10 +79,28 @@ class ContinuousRunner {
         logger.info('\n🔍 Running program discovery...');
 
         try {
+            // Run standard platform discovery
             const programs = await programDiscovery.discoverAll(config.discovery.config);
 
+            // Run Google discovery
+            const googleResults = await this.googleDiscovery.discover();
+
+            // Convert google results to program format for consistency
+            const googlePrograms = googleResults.map(g => ({
+                id: `google-${g.domain}`,
+                name: g.title,
+                platform: 'google-dork',
+                url: g.url,
+                domains: [g.domain],
+                isNew: true, // Always treat as potentially new
+                bountyRange: 'Unknown',
+                type: 'unknown'
+            }));
+
+            const allPrograms = [...programs, ...googlePrograms];
+
             if (config.autoAddNewTargets) {
-                const newPrograms = programs.filter(p => p.isNew);
+                const newPrograms = allPrograms.filter(p => p.isNew);
                 const currentTargets = config.monitoring.config.targets.length;
 
                 for (const program of newPrograms) {
@@ -92,6 +113,20 @@ class ContinuousRunner {
                         if (!config.monitoring.config.targets.includes(domain)) {
                             config.monitoring.config.targets.push(domain);
                             logger.success(`Auto-added new target: ${domain}`);
+
+                            // Save to DB
+                            try {
+                                db.createTarget({
+                                    id: uuidv4(),
+                                    domain: domain,
+                                    platform: program.platform,
+                                    programUrl: program.url || '',
+                                    scope: [],
+                                    outOfScope: [],
+                                });
+                            } catch (e) {
+                                // Ignore duplicate domain errors
+                            }
                         }
                     }
                 }
@@ -194,15 +229,15 @@ export function getDefaultDaemonConfig(): DaemonConfig {
                 outputDir: 'data/monitoring',
                 notifications: {
                     enabled: true,
-                },
-                scanning: {
-                    enabled: true,
-                    nmapTopPorts: 1000,
-                    fullScanPorts: [8080, 8443, 8000, 8888, 3000, 5000],
-                    nucleiSeverity: ['critical', 'high', 'medium'],
-                },
-                screenshots: {
-                    enabled: false,
+                    scanning: {
+                        enabled: true,
+                        nmapTopPorts: 1000,
+                        fullScanPorts: [8080, 8443, 8000, 8888, 3000, 5000],
+                        nucleiSeverity: ['critical', 'high', 'medium'],
+                    },
+                    screenshots: {
+                        enabled: false,
+                    },
                 },
             },
         },
