@@ -148,6 +148,16 @@ class DatabaseManager {
       )
     `);
 
+        // Gemini Cache table
+        this.db.exec(`
+      CREATE TABLE IF NOT EXISTS gemini_cache (
+        hash TEXT PRIMARY KEY,
+        prompt TEXT NOT NULL,
+        response TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
         // Create indexes for performance
         this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_findings_target ON findings(target_id);
@@ -163,6 +173,19 @@ class DatabaseManager {
             this.initialize();
         }
         return this.db!;
+    }
+
+    // Gemini Cache operations
+    getCachedGeminiResponse(hash: string): string | null {
+        const db = this.getDb();
+        const row = db.prepare('SELECT response FROM gemini_cache WHERE hash = ?').get(hash) as { response: string } | undefined;
+        return row ? row.response : null;
+    }
+
+    cacheGeminiResponse(hash: string, prompt: string, response: string): void {
+        const db = this.getDb();
+        db.prepare('INSERT OR REPLACE INTO gemini_cache (hash, prompt, response) VALUES (?, ?, ?)')
+            .run(hash, prompt, response);
     }
 
     // Target operations
@@ -371,6 +394,12 @@ class DatabaseManager {
     isUrlCrawled(sessionId: string, url: string): boolean {
         const db = this.getDb();
         const row = db.prepare('SELECT 1 FROM crawled_urls WHERE session_id = ? AND url = ?').get(sessionId, url);
+        return !!row;
+    }
+
+    isUrlCrawledGlobally(url: string): boolean {
+        const db = this.getDb();
+        const row = db.prepare('SELECT 1 FROM crawled_urls WHERE url = ?').get(url);
         return !!row;
     }
 

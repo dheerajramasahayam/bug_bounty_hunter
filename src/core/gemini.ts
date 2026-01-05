@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI, GenerativeModel, GenerationConfig } from '@google/generative-ai';
+import crypto from 'crypto';
 import { getConfig } from '../config/settings.js';
 import { logger } from './logger.js';
+import { db } from './database.js';
 
 export interface VulnerabilityAnalysis {
     isVulnerable: boolean;
@@ -94,6 +96,16 @@ class GeminiService {
     }
 
     private async generateContent(prompt: string, config?: GenerationConfig): Promise<string> {
+        // Hashing for cache
+        const hash = crypto.createHash('sha256').update(prompt).digest('hex');
+
+        // Check cache
+        const cached = db.getCachedGeminiResponse(hash);
+        if (cached) {
+            logger.debug('Gemini cache hit', { hash: hash.substring(0, 8) });
+            return cached;
+        }
+
         await this.rateLimit();
 
         const model = this.getModel();
@@ -112,6 +124,9 @@ class GeminiService {
 
             const response = result.response;
             const text = response.text();
+
+            // Save to cache
+            db.cacheGeminiResponse(hash, prompt, text);
 
             logger.debug('Gemini response received', {
                 promptLength: prompt.length,

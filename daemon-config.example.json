@@ -2,70 +2,61 @@
     "discovery": {
         "enabled": true,
         "intervalHours": 6,
-        "platforms": {
-            "hackerone": true,
-            "bugcrowd": true,
-            "intigriti": true
-        },
-        "filters": {
-            "minBounty": 100,
-            "excludeVDP": true,
-            "onlyNew": false,
-            "keywords": []
+        "config": {
+            "platforms": {
+                "hackerone": true,
+                "bugcrowd": true,
+                "intigriti": true
+            },
+            "filters": {
+                "minBounty": 100,
+                "excludeVDP": true,
+                "onlyNew": false,
+                "keywords": []
+            },
+            "notifications": {
+                "discordWebhook": "",
+                "slackWebhook": ""
+            }
         }
     },
     "monitoring": {
         "enabled": true,
         "intervalHours": 24,
-        "targets": [],
-        "scanning": {
-            "enabled": true,
-            "nmapTopPorts": 1000,
-            "fullScanPorts": [
-                8080,
-                8443,
-                8000,
-                8888,
-                3000,
-                5000,
-                9000,
-                9090
+        "config": {
+            "targets": [
+                "hackerone.com",
+                "bugcrowd.com",
+                "github.com"
             ],
-            "nucleiSeverity": [
-                "critical",
-                "high",
-                "medium"
-            ]
-        },
-        "screenshots": {
-            "enabled": false
-        }
-    },
-    "notifications": {
-        "discord": {
-            "enabled": false,
-            "webhookUrl": ""
-        },
-        "slack": {
-            "enabled": false,
-            "webhookUrl": ""
-        },
-        "telegram": {
-            "enabled": false,
-            "botToken": "",
-            "chatId": ""
+            "outputDir": "data/monitoring",
+            "notifications": {
+                "enabled": true,
+                "discordWebhook": "",
+                "slackWebhook": ""
+            },
+            "scanning": {
+                "enabled": true,
+                "nmapTopPorts": 1000,
+                "fullScanPorts": [
+                    8080,
+                    8443,
+                    8000,
+                    8888,
+                    3000,
+                    5000
+                ],
+                "nucleiSeverity": [
+                    "critical",
+                    "high",
+                    "medium"
+                ]
+            },
+            "screenshots": {
+                "enabled": false
+            }
         }
     },
     "autoAddNewTargets": true,
-    "maxTargets": 100,
-    "comments": {
-        "_1": "discovery.intervalHours: How often to check for new bug bounty programs",
-        "_2": "monitoring.intervalHours: How often to scan subdomains",
-        "_3": "filters.minBounty: Only programs paying at least this much",
-        "_4": "filters.excludeVDP: Ignore Vulnerability Disclosure Programs (no payouts)",
-        "_5": "autoAddNewTargets: Automatically add discovered programs to monitoring",
-        "_6": "To get Discord webhook: Server Settings > Integrations > Webhooks > New Webhook",
-        "_7": "To get Telegram bot token: Message @BotFather on Telegram",
-        "_8": "To get Telegram chat ID: Message @userinfobot on Telegram"
-    }
+    "maxTargets": 100
 }

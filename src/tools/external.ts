@@ -120,6 +120,54 @@ class ExternalToolsManager {
         });
     }
 
+    async streamTool(
+        command: string,
+        args: string[],
+        options: {
+            onLine: (line: string) => void;
+            onError?: (error: string) => void;
+            timeout?: number;
+        }
+    ): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const timeout = options.timeout || 3600000; // 1 hour default for streaming
+            const proc = spawn(command, args, {
+                timeout,
+                env: {
+                    ...process.env,
+                    PATH: `${process.env.PATH}:${process.env.HOME}/go/bin:/usr/local/go/bin`,
+                },
+            });
+
+            let buffer = '';
+            proc.stdout.on('data', (data: Buffer) => {
+                buffer += data.toString();
+                const lines = buffer.split('\n');
+                // All complete lines except the last one which might be partial
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.trim()) options.onLine(line.trim());
+                }
+            });
+
+            proc.stderr.on('data', (data: Buffer) => {
+                const str = data.toString();
+                if (options.onError) options.onError(str);
+            });
+
+            proc.on('close', (code) => {
+                if (buffer.trim()) options.onLine(buffer.trim()); // Process remaining buffer
+                if (code === 0) resolve();
+                else reject(new Error(`Tool exited with code ${code}`));
+            });
+
+            proc.on('error', (error) => {
+                reject(error);
+            });
+        });
+    }
+
     getWordlistPath(type: 'subdomains' | 'directories' | 'passwords' | 'fuzzing'): string {
         const paths: Record<string, string> = {
             subdomains: path.join(this.wordlistDir, 'SecLists/Discovery/DNS/subdomains-top1million-5000.txt'),
