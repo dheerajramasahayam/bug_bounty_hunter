@@ -8,6 +8,7 @@ import { detectSqlInjection, PatternMatch } from './patterns/sqli.js';
 import { detectXss } from './patterns/xss.js';
 import { detectIdor } from './patterns/idor.js';
 import { analyzeApiSecurity, analyzeApiEndpoint } from './patterns/api.js';
+import { secretsScanner } from './secrets.js';
 
 export interface ScanResult {
     url: string;
@@ -48,6 +49,19 @@ class VulnerabilityAnalyzer {
             patternMatches.push(...detectXss(response));
             patternMatches.push(...detectIdor(response));
             patternMatches.push(...analyzeApiSecurity(response));
+
+            // Secrets Detection
+            const secrets = await secretsScanner.scanText(response.body, url);
+            for (const secret of secrets) {
+                patternMatches.push({
+                    type: 'secret_leak',
+                    severity: 'critical',
+                    pattern: secret.type,
+                    match: secret.value,
+                    context: `Likely ${secret.type} found in response body`,
+                    confidence: secret.confidence === 'high' ? 0.95 : 0.6,
+                });
+            }
         }
 
         // Log pattern matches
@@ -221,6 +235,19 @@ class VulnerabilityAnalyzer {
             }
         }
 
+        // Secrets Detection in JS
+        const secrets = await secretsScanner.scanText(jsCode, jsUrl);
+        for (const secret of secrets) {
+            patternMatches.push({
+                type: 'secret_leak',
+                severity: 'critical',
+                pattern: secret.type,
+                match: secret.value,
+                context: `Hardcoded ${secret.type} found in JavaScript file`,
+                confidence: secret.confidence === 'high' ? 0.95 : 0.6,
+            });
+        }
+
         findings.push(...this.createFindings(jsUrl, patternMatches, undefined, options));
 
         for (const finding of findings) {
@@ -301,6 +328,7 @@ class VulnerabilityAnalyzer {
             'info_disclosure': 'Information Disclosure',
             'ssrf': 'Server-Side Request Forgery (SSRF)',
             'cmd_injection': 'Command Injection',
+            'secret_leak': 'Hardcoded Secret / Credential Leak',
         };
         return typeMap[type] || type;
     }

@@ -799,6 +799,43 @@ program
         config.targets.forEach((t: string) => console.log(chalk.gray(`  • ${t}`)));
     });
 
+// Cloud command - enumerate cloud assets
+program
+    .command('cloud <domain>')
+    .description('Enumerate and check cloud assets (S3, Azure, etc.)')
+    .action(async (domain: string) => {
+        const { cloudScanner } = await import('../scanner/cloud.js');
+
+        logger.banner('Cloud Asset Discovery');
+
+        console.log(chalk.cyan(`\nChecking Cloud Assets for: ${domain}\n`));
+
+        const spinner = ora('Enumerating buckets...').start();
+        const assets = await cloudScanner.scanDomain(domain);
+
+        if (assets.length === 0) {
+            spinner.info('No publicly accessible cloud assets found.');
+        } else {
+            spinner.succeed(`Found ${assets.length} cloud assets:`);
+
+            for (const asset of assets) {
+                const color = asset.isVulnerable ? chalk.red : chalk.yellow;
+                const status = asset.isVulnerable ? '[VULNERABLE]' : '[FOUND]';
+
+                console.log(color(`  ${status} ${asset.name} (${asset.type})`));
+                console.log(chalk.gray(`    URL: ${asset.url}`));
+                if (asset.permissions.list) console.log(chalk.red('    - Listable: YES'));
+                if (asset.permissions.write) console.log(chalk.red('    - Writable: YES'));
+                console.log('');
+            }
+
+            if (assets.some(a => a.isVulnerable)) {
+                console.log(chalk.yellow('\n⚠️  Public buckets found! Manual verification recommended.'));
+            }
+        }
+        console.log('');
+    });
+
 // Discover command - find new bug bounty programs
 program
     .command('discover')

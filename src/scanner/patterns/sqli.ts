@@ -1,7 +1,7 @@
 import { CrawlResponse } from '../../crawler/webcrawler.js';
 
 export interface PatternMatch {
-    type: 'sqli' | 'xss' | 'idor' | 'info_disclosure' | 'ssrf' | 'cmd_injection';
+    type: 'sqli' | 'xss' | 'idor' | 'info_disclosure' | 'ssrf' | 'cmd_injection' | 'secret_leak';
     severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
     pattern: string;
     match: string;

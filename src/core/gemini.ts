@@ -464,8 +464,73 @@ Respond with this JSON schema:
         }
     }
 
+    async validateSecret(secret: string, type: string, context: string): Promise<boolean> {
+        const prompt = `Validate this potential secret/API key:
+
+Type: ${type}
+Possible Secret: ${secret}
+Context (surrounding text):
+${context}
+
+Tasks:
+1. Determine if this looks like a valid credential or a placeholder/example.
+2. Check for high entropy vs low entropy (e.g. "EXAMPLE_KEY" vs "d82...f9a").
+3. Check context for words like "example", "test", "demo", "placeholder".
+
+Respond with JSON:
+{
+  "isValid": boolean
+}`;
+
+        const response = await this.generateContent(prompt);
+
+        try {
+            const result = JSON.parse(response);
+            return result.isValid;
+        } catch {
+            return false;
+        }
+    }
+
     getRequestCount(): number {
         return this.requestCount;
+    }
+    async analyzeLogic(
+        workflowType: string,
+        requestDetails: string,
+        businessContext: string
+    ): Promise<any> {
+        const prompt = `Analyze this business workflow for Logic Vulnerabilities.
+
+Workflow Type: ${workflowType}
+Context: ${businessContext}
+
+Request Details:
+${requestDetails}
+
+Think like a greedy attacker. Look for:
+1. Price/Quantity Manipulation (negative numbers, decimals, huge numbers)
+2. Race Conditions (limit bypass, double spend)
+3. IDOR in critical actions (changing other user's data)
+4. Privilege Escalation (parameter tampering)
+5. Skip Steps (force browsing to success page)
+
+Respond with JSON:
+{
+  "flaws": [
+    {
+      "type": "string",
+      "severity": "critical|high|medium",
+      "description": "string",
+      "location": "string (parameter or endpoint)",
+      "testSteps": ["step 1", "step 2"],
+      "likelihood": "high|medium|low"
+    }
+  ]
+}`; // Using generic return type for flexibility as the interface is in logic.ts
+
+        const response = await this.generateContent(prompt);
+        return JSON.parse(response);
     }
 }
 
