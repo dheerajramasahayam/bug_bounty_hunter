@@ -796,7 +796,150 @@ program
         }
 
         console.log(chalk.cyan('\nCurrent targets:'));
-        config.targets.forEach(t => console.log(chalk.gray(`  • ${t}`)));
+        config.targets.forEach((t: string) => console.log(chalk.gray(`  • ${t}`)));
+    });
+
+// Discover command - find new bug bounty programs
+program
+    .command('discover')
+    .description('Discover new bug bounty programs from HackerOne, Bugcrowd, Intigriti')
+    .option('--hackerone', 'Search HackerOne only')
+    .option('--bugcrowd', 'Search Bugcrowd only')
+    .option('--intigriti', 'Search Intigriti only')
+    .option('--min-bounty <amount>', 'Minimum bounty amount', '0')
+    .option('--only-new', 'Show only new programs')
+    .option('--no-vdp', 'Exclude Vulnerability Disclosure Programs')
+    .option('--discord <webhook>', 'Discord webhook for notifications')
+    .action(async (options) => {
+        const { programDiscovery } = await import('../discovery/program-discovery.js');
+
+        logger.banner('Bug Bounty Program Discovery');
+        db.initialize();
+
+        const config = {
+            platforms: {
+                hackerone: options.hackerone || (!options.bugcrowd && !options.intigriti),
+                bugcrowd: options.bugcrowd || (!options.hackerone && !options.intigriti),
+                intigriti: options.intigriti || (!options.hackerone && !options.bugcrowd),
+            },
+            filters: {
+                minBounty: parseInt(options.minBounty) || 0,
+                onlyNew: options.onlyNew || false,
+                excludeVDP: !options.vdp,
+                keywords: [],
+            },
+            notifications: {
+                discordWebhook: options.discord,
+            },
+        };
+
+        console.log(chalk.cyan('\n🔍 Searching bug bounty platforms...\n'));
+
+        const programs = await programDiscovery.discoverAll(config);
+
+        console.log(chalk.green(`\n✅ Found ${programs.length} programs\n`));
+
+        // Display results
+        const newPrograms = programs.filter(p => p.isNew);
+        if (newPrograms.length > 0) {
+            console.log(chalk.yellow(`🆕 New Programs (${newPrograms.length}):\n`));
+            for (const p of newPrograms.slice(0, 20)) {
+                console.log(chalk.white(`  ${p.name} (${p.platform})`));
+                console.log(chalk.gray(`    💰 $${p.bountyRange.min}-$${p.bountyRange.max}`));
+                console.log(chalk.gray(`    🔗 ${p.programUrl}\n`));
+            }
+        }
+
+        console.log(chalk.cyan(`📊 Total known programs: ${programDiscovery.getKnownProgramsCount()}`));
+    });
+
+// Daemon command - run 24/7
+program
+    .command('daemon')
+    .description('Run 24/7 continuous bug hunting (discovery + monitoring)')
+    .option('-c, --config <file>', 'Config file path', 'daemon-config.json')
+    .option('--discovery-interval <hours>', 'Hours between program discovery', '6')
+    .option('--monitor-interval <hours>', 'Hours between subdomain monitoring', '24')
+    .option('--min-bounty <amount>', 'Minimum bounty for auto-discovery', '100')
+    .option('--max-targets <number>', 'Maximum targets to monitor', '100')
+    .option('--discord <webhook>', 'Discord webhook for notifications')
+    .option('--no-auto-add', 'Don\'t auto-add discovered programs to monitoring')
+    .option('--once', 'Run once and exit (for cron jobs)')
+    .action(async (options) => {
+        const { continuousRunner, getDefaultDaemonConfig } = await import('../daemon/runner.js');
+        const fs = await import('fs');
+
+        let config = getDefaultDaemonConfig();
+
+        // Load config file if exists
+        if (fs.existsSync(options.config)) {
+            try {
+                const fileConfig = JSON.parse(fs.readFileSync(options.config, 'utf-8'));
+                config = { ...config, ...fileConfig };
+                logger.info(`Loaded config from: ${options.config}`);
+            } catch {
+                logger.warn(`Failed to load config: ${options.config}`);
+            }
+        }
+
+        // Apply CLI options
+        config.discovery.intervalHours = parseInt(options.discoveryInterval) || 6;
+        config.monitoring.intervalHours = parseInt(options.monitorInterval) || 24;
+        config.discovery.config.filters.minBounty = parseInt(options.minBounty) || 100;
+        config.maxTargets = parseInt(options.maxTargets) || 100;
+        config.autoAddNewTargets = options.autoAdd !== false;
+
+        if (options.discord) {
+            config.discovery.config.notifications.discordWebhook = options.discord;
+            config.monitoring.config.notifications.discordWebhook = options.discord;
+        }
+
+        console.log(chalk.cyan('\n🤖 BugHunter AI - Continuous Mode\n'));
+        console.log(chalk.gray(`   Discovery Interval: Every ${config.discovery.intervalHours} hours`));
+        console.log(chalk.gray(`   Monitor Interval: Every ${config.monitoring.intervalHours} hours`));
+        console.log(chalk.gray(`   Min Bounty Filter: $${config.discovery.config.filters.minBounty}`));
+        console.log(chalk.gray(`   Max Targets: ${config.maxTargets}`));
+        console.log(chalk.gray(`   Auto-add Targets: ${config.autoAddNewTargets ? 'Yes' : 'No'}`));
+        console.log(chalk.gray(`   Discord: ${options.discord ? 'Configured' : 'Not set'}\n`));
+
+        if (options.once) {
+            await continuousRunner.runOnce(config);
+        } else {
+            await continuousRunner.start(config);
+        }
+    });
+
+// Auto command - quick start for automatic hunting
+program
+    .command('auto')
+    .description('Quick start automatic bug hunting (discovers programs + monitors)')
+    .option('--discord <webhook>', 'Discord webhook for notifications')
+    .action(async (options) => {
+        const { continuousRunner, getDefaultDaemonConfig } = await import('../daemon/runner.js');
+
+        console.log(chalk.cyan(`
+╔═══════════════════════════════════════════════════════════════╗
+║         🤖 BugHunter AI - Automatic Mode                      ║
+║                                                               ║
+║   This will:                                                  ║
+║   • Discover new bug bounty programs every 6 hours            ║
+║   • Auto-add paying programs to monitoring                    ║
+║   • Scan for subdomains and vulnerabilities daily             ║
+║   • Send notifications to Discord/Slack                       ║
+║                                                               ║
+║   Press Ctrl+C to stop                                        ║
+╚═══════════════════════════════════════════════════════════════╝
+    `));
+
+        const config = getDefaultDaemonConfig();
+
+        if (options.discord) {
+            config.discovery.config.notifications.discordWebhook = options.discord;
+            config.monitoring.config.notifications.discordWebhook = options.discord;
+        }
+
+        await continuousRunner.start(config);
     });
 
 program.parse();
+
