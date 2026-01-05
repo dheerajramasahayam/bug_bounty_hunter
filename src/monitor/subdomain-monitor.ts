@@ -410,191 +410,129 @@ class SubdomainMonitor {
                     });
 
                     // Save to database
-                    db.createFinding({
-                        id: uuidv4(),
-                        targetId: domain,
-                        type: nr.info.name,
-                        severity: nr.info.severity === 'unknown' ? 'info' : nr.info.severity,
-                        url: nr.host,
-                        evidence: nr.matched || '',
-                        description: nr.info.description || `Detected by Nuclei: ${nr.templateId}`,
-                        aiAnalysis: undefined,
-                        confidence: 0.9,
-                        status: 'new',
-                    });
-                }
-
-                logger.success(`Found ${result.vulnerabilities.length} vulnerabilities`);
-            }
-        }
-
-        // Phase 4.5: Aggressive Discovery (Optional)
-        if (config.scanning.enabled && config.scanning.aggressive) {
-            logger.info('\n🧨 Phase 4.5: Aggressive Discovery (Fuzzing & Parameters)');
-
-            // 1. Active Fuzzing
-            if (await ffuf.isAvailable()) {
-                const fuzzTargets = result.liveHosts.slice(0, 5); // Limit to top 5 hosts for monitoring speed
-                logger.info(`Running ffuf on ${fuzzTargets.length} hosts...`);
-
-                for (const target of fuzzTargets) {
-                    const paths = await ffuf.discoverDirectories(target);
-                    for (const path of paths) {
-                        // Log only interesting files that are not just simple 200s (e.g. look for sensitive keywords in url)
-                        if (path.url.includes('admin') || path.url.includes('config') || path.url.includes('backup')) {
-                            result.vulnerabilities.push({
-                                host: target,
-                                name: `Exposed File: ${path.url}`,
-                                severity: 'medium',
-                            });
-                            db.createFinding({
-                                id: uuidv4(),
-                                targetId: domain,
-                                type: 'Sensitive File Exposure',
-                                severity: 'medium',
-                                url: path.url,
-                                evidence: `Found via fuzzing: ${path.url} (Status: ${path.status})`,
-                                description: 'Potentially sensitive file discovered during active fuzzing.',
-                                confidence: 0.8,
-                                status: 'new',
-                            });
-                        }
-                    }
-                }
-            }
-
-            // 2. Parameter Discovery
-            logger.info('Running parameter discovery...');
-            const paramTargets = result.liveHosts.slice(0, 5); // Limit check
-            for (const url of paramTargets) {
-                const params = await parameterScanner.scanEndpoint(url);
-                for (const p of params) {
-                    for (const paramName of p.params) {
-                        result.vulnerabilities.push({
-                            host: url,
-                            name: `Hidden Param: ${paramName}`,
-                            severity: 'info',
-                        });
+                    const targetRecord = db.getTargetByDomain(domain);
+                    if (targetRecord) {
                         db.createFinding({
                             id: uuidv4(),
-                            targetId: domain,
-                            type: 'Hidden Parameter Discovered',
-                            severity: 'info',
-                            url: p.url,
-                            parameter: paramName,
-                            evidence: `Parameter '${paramName}' found via ${p.source}`,
-                            description: `Hidden parameter '${paramName}' discovered.`,
-                            confidence: 0.7,
+                            targetId: targetRecord.id,
+                            type: nr.info.name,
+                            severity: nr.info.severity === 'unknown' ? 'info' : nr.info.severity,
+                            url: nr.host,
+                            evidence: nr.matched || '',
+                            description: nr.info.description || `Detected by Nuclei: ${nr.templateId}`,
+                            aiAnalysis: undefined,
+                            confidence: 0.9,
                             status: 'new',
                         });
                     }
+
+                    logger.success(`Found ${result.vulnerabilities.length} vulnerabilities`);
                 }
             }
-        }
 
-        // 3. Advanced JS Analysis (AST)
-        logger.info('Running AST-based JS Analysis...');
-        // Fetch potential JS files from live hosts (naive check for now, can be improved with crawling)
-        // For monitoring, we will just check /main.js, /app.js, /config.js on live hosts as a quick check
-        const commonJsFiles = ['/main.js', '/app.js', '/config.js', '/assets/index.js'];
+            // Phase 4.5: Aggressive Discovery (Optional)
+            if (config.scanning.enabled && config.scanning.aggressive) {
+                logger.info('\n🧨 Phase 4.5: Aggressive Discovery (Fuzzing & Parameters)');
 
-        for (const host of result.liveHosts.slice(0, 5)) {
-            for (const jsPath of commonJsFiles) {
-                const jsUrl = `${host}${jsPath}`;
-                try {
-                    const axios = (await import('axios')).default;
-                    const res = await axios.get(jsUrl, { timeout: 5000, validateStatus: () => true });
+                // 1. Active Fuzzing
+                if (await ffuf.isAvailable()) {
+                    const fuzzTargets = result.liveHosts.slice(0, 5); // Limit to top 5 hosts for monitoring speed
+                    logger.info(`Running ffuf on ${fuzzTargets.length} hosts...`);
 
-                    if (res.status === 200 && (res.headers['content-type']?.includes('javascript') || res.data.toString().includes('function'))) {
-                        const astResult = advancedJsAnalyzer.analyze(res.data, jsUrl);
-
-                        if (astResult.secrets.length > 0) {
-                            result.vulnerabilities.push({
-                                host: host,
-                                name: `JS Secrets (${astResult.secrets.length})`,
-                                severity: 'critical'
-                            });
-
-                            for (const secret of astResult.secrets) {
-                                db.createFinding({
-                                    id: uuidv4(),
-                                    targetId: domain,
-                                    type: 'Hardcoded Secret / Credential Leak',
-                                    severity: 'critical',
-                                    url: jsUrl,
-                                    evidence: secret.value,
-                                    description: `Hardcoded ${secret.type} found in ${jsUrl} via AST analysis.`,
-                                    confidence: 0.95,
-                                    status: 'verified',
+                    for (const target of fuzzTargets) {
+                        const paths = await ffuf.discoverDirectories(target);
+                        for (const path of paths) {
+                            // Log only interesting files that are not just simple 200s (e.g. look for sensitive keywords in url)
+                            if (path.url.includes('admin') || path.url.includes('config') || path.url.includes('backup')) {
+                                result.vulnerabilities.push({
+                                    host: target,
+                                    name: `Exposed File: ${path.url}`,
+                                    severity: 'medium',
                                 });
+
+                                // Resolve UUID for FK
+                                const targetRecord = db.getTargetByDomain(domain);
+                                if (targetRecord) {
+                                    db.createFinding({
+                                        id: uuidv4(),
+                                        targetId: targetRecord.id, // Use UUID
+                                        type: `Exposed File: ${path.url}`,
+                                        severity: 'medium',
+                                        url: path.url,
+                                        evidence: `Fuzzing found ${path.url} (Status: ${path.status})`,
+                                        description: `Fuzzing detected a potentially interesting file or directory.`,
+                                        confidence: 1.0,
+                                        status: 'new',
+                                    });
+                                }
                             }
                         }
                     }
-                } catch (err) {
-                    // Ignore 404s etc
                 }
             }
-        }
 
-        // Phase 5: Screenshots (using Eyewitness if available)
-        if (config.screenshots.enabled) {
-            logger.info('\n📸 Phase 5: Screenshots');
+            // Phase 5: Screenshots (using Eyewitness if available)
+            if (config.screenshots.enabled) {
+                logger.info('\n📸 Phase 5: Screenshots');
 
-            // Check if eyewitness is available using shell
-            let eyewitnessAvailable = false;
-            try {
-                const { exitCode } = await externalTools.runCommand('which', ['eyewitness'], { timeout: 5000 });
-                eyewitnessAvailable = exitCode === 0;
-            } catch {
-                eyewitnessAvailable = false;
-            }
-
-            if (eyewitnessAvailable) {
-                const screenshotDir = path.join(this.dataDir, 'screenshots', domain.replace(/\./g, '_'),
-                    new Date().toISOString().split('T')[0]);
-
-                if (!fs.existsSync(screenshotDir)) {
-                    fs.mkdirSync(screenshotDir, { recursive: true });
-                }
-
-                // Create URL list file
-                const urlFile = path.join(screenshotDir, 'urls.txt');
-                fs.writeFileSync(urlFile, result.liveHosts.join('\n'));
-
+                // Check if eyewitness is available using shell
+                let eyewitnessAvailable = false;
                 try {
-                    await externalTools.runCommand('eyewitness', [
-                        '-f', urlFile,
-                        '-d', screenshotDir,
-                        '--no-prompt',
-                        '--timeout', '30',
-                    ], { timeout: 600000 });
-
-                    result.screenshotsPath = screenshotDir;
-                    logger.success(`Screenshots saved to: ${screenshotDir}`);
-                } catch (error) {
-                    logger.warn('Eyewitness failed', { error: String(error) });
+                    const { exitCode } = await externalTools.runCommand('which', ['eyewitness'], { timeout: 5000 });
+                    eyewitnessAvailable = exitCode === 0;
+                } catch {
+                    eyewitnessAvailable = false;
                 }
-            } else {
-                logger.warn('Eyewitness not available, skipping screenshots');
+
+                if (eyewitnessAvailable) {
+                    const screenshotDir = path.join(this.dataDir, 'screenshots', domain.replace(/\./g, '_'),
+                        new Date().toISOString().split('T')[0]);
+
+                    if (!fs.existsSync(screenshotDir)) {
+                        fs.mkdirSync(screenshotDir, { recursive: true });
+                    }
+
+                    // Create URL list file
+                    const urlFile = path.join(screenshotDir, 'urls.txt');
+                    fs.writeFileSync(urlFile, result.liveHosts.join('\n'));
+
+                    try {
+                        await externalTools.runCommand('eyewitness', [
+                            '-f', urlFile,
+                            '-d', screenshotDir,
+                            '--no-prompt',
+                            '--timeout', '30',
+                        ], { timeout: 600000 });
+
+                        result.screenshotsPath = screenshotDir;
+                        logger.success(`Screenshots saved to: ${screenshotDir}`);
+                    } catch (error) {
+                        logger.warn('Eyewitness failed', { error: String(error) });
+                    }
+                } else {
+                    logger.warn('Eyewitness not available, skipping screenshots');
+                }
             }
+
+            // Save history
+            this.appendHistory(domain, result);
+
+            // Send notifications if there are new findings
+            if (result.newSubdomains.length > 0 || result.vulnerabilities.length > 0) {
+                await this.sendNotification(config.notifications, result);
+            }
+
+            // Summary
+            logger.banner('Monitoring Cycle Complete');
+            logger.info(`📊 Summary for ${domain}:`);
+            logger.info(`   New Subdomains: ${result.newSubdomains.length}`);
+            logger.info(`   Total Subdomains: ${result.totalSubdomains}`);
+            logger.info(`   Live Hosts: ${result.liveHosts.length}`);
+            logger.info(`   Open Ports: ${result.openPorts.length}`);
+            logger.info(`   Vulnerabilities: ${result.vulnerabilities.length}`);
+
+            return result;
         }
-
-        // Save history
-        this.appendHistory(domain, result);
-
-        // Send notifications if there are new findings
-        if (result.newSubdomains.length > 0 || result.vulnerabilities.length > 0) {
-            await this.sendNotification(config.notifications, result);
-        }
-
-        // Summary
-        logger.banner('Monitoring Cycle Complete');
-        logger.info(`📊 Summary for ${domain}:`);
-        logger.info(`   New Subdomains: ${result.newSubdomains.length}`);
-        logger.info(`   Total Subdomains: ${result.totalSubdomains}`);
-        logger.info(`   Live Hosts: ${result.liveHosts.length}`);
-        logger.info(`   Open Ports: ${result.openPorts.length}`);
-        logger.info(`   Vulnerabilities: ${result.vulnerabilities.length}`);
 
         return result;
     }
