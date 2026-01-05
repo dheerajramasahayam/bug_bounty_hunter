@@ -133,6 +133,28 @@ class ContinuousRunner {
                             } catch (e) {
                                 // Ignore duplicate domain errors
                             }
+
+                            // Save to daemon-config.json to persist across restarts
+                            try {
+                                const configPath = path.join(process.cwd(), 'daemon-config.json');
+                                if (fs.existsSync(configPath)) {
+                                    const currentFileContent = fs.readFileSync(configPath, 'utf-8');
+                                    const currentConfig = JSON.parse(currentFileContent);
+
+                                    // Update targets in the file config
+                                    if (!currentConfig.monitoring) currentConfig.monitoring = {};
+                                    if (!currentConfig.monitoring.config) currentConfig.monitoring.config = {};
+                                    if (!currentConfig.monitoring.config.targets) currentConfig.monitoring.config.targets = [];
+
+                                    if (!currentConfig.monitoring.config.targets.includes(domain)) {
+                                        currentConfig.monitoring.config.targets.push(domain);
+                                        fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2));
+                                        logger.info(`Persisted ${domain} to daemon-config.json`);
+                                    }
+                                }
+                            } catch (error) {
+                                logger.warn('Failed to save persistence to daemon-config.json', { error: String(error) });
+                            }
                         }
                     }
                 }
