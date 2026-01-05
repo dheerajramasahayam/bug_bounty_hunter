@@ -4,7 +4,7 @@ module.exports = {
         {
             name: "bughunter-monitor",
             script: "./dist/cli/index.js",
-            args: "monitor --aggressive",
+            args: "daemon --aggressive",
             instances: 1,
             autorestart: true,
             watch: false,

@@ -905,6 +905,7 @@ program
     .option('--max-targets <number>', 'Maximum targets to monitor', '100')
     .option('--discord <webhook>', 'Discord webhook for notifications')
     .option('--no-auto-add', 'Don\'t auto-add discovered programs to monitoring')
+    .option('--aggressive', 'Enable aggressive scanning mode')
     .option('--once', 'Run once and exit (for cron jobs)')
     .action(async (options) => {
         const { continuousRunner, getDefaultDaemonConfig } = await import('../daemon/runner.js');
@@ -933,6 +934,10 @@ program
         if (options.discord) {
             config.discovery.config.notifications.discordWebhook = options.discord;
             config.monitoring.config.notifications.discordWebhook = options.discord;
+        }
+
+        if (options.aggressive) {
+            config.monitoring.config.scanning.aggressive = true;
         }
 
         console.log(chalk.cyan('\n🤖 BugHunter AI - Continuous Mode\n'));

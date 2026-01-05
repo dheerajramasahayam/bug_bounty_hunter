@@ -190,7 +190,14 @@ class ContinuousRunner {
             logger.info(`Monitoring ${targetDomains.length} targets from database`);
 
             // Update config object locally for the monitor execution
-            const monitorConfig = { ...config.monitoring.config, targets: targetDomains };
+            const monitorConfig = {
+                ...config.monitoring.config,
+                targets: targetDomains,
+                scanning: {
+                    ...config.monitoring.config.scanning,
+                    aggressive: config.monitoring.config.scanning.aggressive
+                }
+            };
 
             const results = await subdomainMonitor.monitorAll(monitorConfig);
 
