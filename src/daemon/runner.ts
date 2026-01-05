@@ -39,14 +39,15 @@ class ContinuousRunner {
         this.syncConfigTargetsToDB(config);
 
         // Initial runs
+        // Initial runs
         if (config.discovery.enabled) {
-            await this.runDiscovery(config);
+            this.runDiscoverySafe(config);
 
             // Schedule recurring discovery
-            const discoveryInterval = config.discovery.intervalHours * 60 * 60 * 1000;
-            this.discoveryTimer = setInterval(async () => {
+            const discoveryInterval = Math.max(config.discovery.intervalHours, 0.1) * 60 * 60 * 1000;
+            this.discoveryTimer = setInterval(() => {
                 if (this.running) {
-                    await this.runDiscovery(config);
+                    this.runDiscoverySafe(config);
                 }
             }, discoveryInterval);
 
@@ -57,13 +58,13 @@ class ContinuousRunner {
             // Wait a bit before starting monitoring to let discovery complete
             await new Promise(resolve => setTimeout(resolve, 5000));
 
-            await this.runMonitoring(config);
+            this.runMonitoringSafe(config);
 
             // Schedule recurring monitoring
-            const monitoringInterval = config.monitoring.intervalHours * 60 * 60 * 1000;
-            this.monitoringTimer = setInterval(async () => {
+            const monitoringInterval = Math.max(config.monitoring.intervalHours, 0.1) * 60 * 60 * 1000;
+            this.monitoringTimer = setInterval(() => {
                 if (this.running) {
-                    await this.runMonitoring(config);
+                    this.runMonitoringSafe(config);
                 }
             }, monitoringInterval);
 
@@ -104,6 +105,25 @@ class ContinuousRunner {
                 logger.success(`Migrated ${added} manual targets to database`);
             }
         }
+    }
+
+    private isDiscoveryRunning = false;
+    private isMonitoringRunning = false;
+
+    private async runDiscoverySafe(config: DaemonConfig) {
+        if (this.isDiscoveryRunning) return;
+        this.isDiscoveryRunning = true;
+        await this.runDiscovery(config);
+        this.isDiscoveryRunning = false;
+        logger.info(`clock 🕒 Next discovery run in ${config.discovery.intervalHours} hours`);
+    }
+
+    private async runMonitoringSafe(config: DaemonConfig) {
+        if (this.isMonitoringRunning) return;
+        this.isMonitoringRunning = true;
+        await this.runMonitoring(config);
+        this.isMonitoringRunning = false;
+        logger.info(`clock 🕒 Next monitoring run in ${config.monitoring.intervalHours} hours`);
     }
 
     private async runDiscovery(config: DaemonConfig): Promise<void> {
