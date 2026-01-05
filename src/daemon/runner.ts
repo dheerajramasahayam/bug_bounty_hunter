@@ -35,6 +35,9 @@ class ContinuousRunner {
         this.running = true;
         db.initialize();
 
+        // MIGRATION: Sync targets from config file to Database
+        this.syncConfigTargetsToDB(config);
+
         // Initial runs
         if (config.discovery.enabled) {
             await this.runDiscovery(config);
@@ -75,6 +78,34 @@ class ContinuousRunner {
         logger.info('The daemon will now run 24/7, discovering new programs and monitoring targets.');
     }
 
+    private syncConfigTargetsToDB(config: DaemonConfig) {
+        if (config.monitoring.config.targets && config.monitoring.config.targets.length > 0) {
+            logger.info(`Syncing ${config.monitoring.config.targets.length} targets from config to database...`);
+            let added = 0;
+            for (const domain of config.monitoring.config.targets) {
+                // Check if exists
+                if (!db.getTargetByDomain(domain)) {
+                    try {
+                        db.createTarget({
+                            id: uuidv4(),
+                            domain: domain,
+                            platform: 'manual',
+                            programUrl: '',
+                            scope: [],
+                            outOfScope: [],
+                        });
+                        added++;
+                    } catch (e) {
+                        // Ignore
+                    }
+                }
+            }
+            if (added > 0) {
+                logger.success(`Migrated ${added} manual targets to database`);
+            }
+        }
+    }
+
     private async runDiscovery(config: DaemonConfig): Promise<void> {
         logger.info('\n🔍 Running program discovery...');
 
@@ -85,40 +116,39 @@ class ContinuousRunner {
             // Run Google discovery
             const googleResults = await this.googleDiscovery.discover();
 
-            // Convert google results to program format for consistency
-            // Use 'any' to bypass strict type check for now since we are mapping manually below
+            // Convert google results to program format 
             const googlePrograms = googleResults.map(g => ({
                 id: `google-${g.domain}`,
                 name: g.title,
                 platform: 'google-dork',
-                programUrl: g.url, // Correct property name
+                programUrl: g.url,
                 domains: [g.domain],
-                isNew: true, // Always treat as potentially new
-                bountyRange: { min: 0, max: 0 }, // Correct structure
+                isNew: true,
+                bountyRange: { min: 0, max: 0 },
                 type: 'vdp',
                 scope: [],
                 outOfScope: []
             }));
 
-            // We need to cast googlePrograms as BugBountyProgram[] or similar to mix them
-            // For now, simpler to just iterate separately if needed, but array mixing is cleaner
-            // We'll use 'any' array to mix them to avoid complex union types in this loop
+            // Use 'any' to bypass strict type check for mixed arrays
             const allPrograms: any[] = [...programs, ...googlePrograms];
 
             if (config.autoAddNewTargets) {
                 const newPrograms = allPrograms.filter((p: any) => p.isNew);
-                const currentTargets = config.monitoring.config.targets.length;
+
+                // Fetch current targets from DB, NOT config
+                const allDbTargets = db.getAllTargets();
+                const currentTargetCount = allDbTargets.length;
+                const monitoredDomains = new Set(allDbTargets.map(t => t.domain));
 
                 for (const program of newPrograms) {
-                    if (currentTargets + config.monitoring.config.targets.length >= config.maxTargets) {
+                    if (currentTargetCount >= config.maxTargets) {
                         logger.warn(`Max targets limit (${config.maxTargets}) reached`);
                         break;
                     }
 
                     for (const domain of program.domains) {
-                        if (!config.monitoring.config.targets.includes(domain)) {
-                            config.monitoring.config.targets.push(domain);
-                            logger.success(`Auto-added new target: ${domain}`);
+                        if (!monitoredDomains.has(domain)) {
 
                             // Save to DB
                             try {
@@ -130,30 +160,10 @@ class ContinuousRunner {
                                     scope: program.scope || [],
                                     outOfScope: program.outOfScope || [],
                                 });
+                                logger.success(`Auto-added new target to DB: ${domain}`);
+                                monitoredDomains.add(domain); // Track locally
                             } catch (e) {
                                 // Ignore duplicate domain errors
-                            }
-
-                            // Save to daemon-config.json to persist across restarts
-                            try {
-                                const configPath = path.join(process.cwd(), 'daemon-config.json');
-                                if (fs.existsSync(configPath)) {
-                                    const currentFileContent = fs.readFileSync(configPath, 'utf-8');
-                                    const currentConfig = JSON.parse(currentFileContent);
-
-                                    // Update targets in the file config
-                                    if (!currentConfig.monitoring) currentConfig.monitoring = {};
-                                    if (!currentConfig.monitoring.config) currentConfig.monitoring.config = {};
-                                    if (!currentConfig.monitoring.config.targets) currentConfig.monitoring.config.targets = [];
-
-                                    if (!currentConfig.monitoring.config.targets.includes(domain)) {
-                                        currentConfig.monitoring.config.targets.push(domain);
-                                        fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2));
-                                        logger.info(`Persisted ${domain} to daemon-config.json`);
-                                    }
-                                }
-                            } catch (error) {
-                                logger.warn('Failed to save persistence to daemon-config.json', { error: String(error) });
                             }
                         }
                     }
@@ -168,12 +178,21 @@ class ContinuousRunner {
         logger.info('\n📡 Running subdomain monitoring...');
 
         try {
-            if (config.monitoring.config.targets.length === 0) {
-                logger.warn('No targets to monitor. Add targets or enable auto-discovery.');
+            // Fetch targets from DATABASE, ignoring config file list
+            const targets = db.getAllTargets();
+            const targetDomains = targets.map(t => t.domain);
+
+            if (targetDomains.length === 0) {
+                logger.warn('No targets found in database. Add targets via CLI or enable auto-discovery.');
                 return;
             }
 
-            const results = await subdomainMonitor.monitorAll(config.monitoring.config);
+            logger.info(`Monitoring ${targetDomains.length} targets from database`);
+
+            // Update config object locally for the monitor execution
+            const monitorConfig = { ...config.monitoring.config, targets: targetDomains };
+
+            const results = await subdomainMonitor.monitorAll(monitorConfig);
 
             // Summary
             let totalNew = 0;
@@ -213,6 +232,7 @@ class ContinuousRunner {
     async runOnce(config: DaemonConfig): Promise<void> {
         logger.banner('🤖 BugHunter AI - Single Run');
         db.initialize();
+        this.syncConfigTargetsToDB(config);
 
         if (config.discovery.enabled) {
             await this.runDiscovery(config);
