@@ -457,6 +457,7 @@ program
     .option('-s, --severity <levels>', 'Nuclei severity filter (critical,high,medium)', 'critical,high,medium')
     .option('-t, --tags <tags>', 'Nuclei tags filter (comma-separated)')
     .option('-o, --output <format>', 'Report format (markdown|html|json)', 'markdown')
+    .option('-a, --aggressive', 'Enable aggressive discovery (Active Fuzzing & Parameter Discovery)')
     .action(async (target: string, options) => {
         // Dynamic import to avoid loading external tools unless needed
         const { enhancedScanner } = await import('../scanner/enhanced.js');
@@ -511,6 +512,7 @@ program
                 nucleiTags: options.tags ? options.tags.split(',') : undefined,
                 skipPortScan: !options.ports,
                 skipUrlGathering: !options.urls,
+                aggressive: options.aggressive,
             });
 
             // Update session
@@ -662,6 +664,7 @@ program
     .option('--slack <webhook>', 'Slack webhook URL')
     .option('--no-scan', 'Skip vulnerability scanning')
     .option('--no-screenshots', 'Skip screenshots')
+    .option('-a, --aggressive', 'Enable aggressive discovery (active fuzzing & params)')
     .action(async (options) => {
         const { subdomainMonitor } = await import('../monitor/subdomain-monitor.js');
         const fs = await import('fs');
@@ -683,6 +686,7 @@ program
                 nmapTopPorts: 1000,
                 fullScanPorts: [8080, 8443, 8000, 8888, 3000, 5000, 9000, 9090],
                 nucleiSeverity: ['critical', 'high', 'medium'] as ('critical' | 'high' | 'medium' | 'low' | 'info')[],
+                aggressive: options.aggressive
             },
             screenshots: {
                 enabled: options.screenshots !== false,

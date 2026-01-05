@@ -8,6 +8,9 @@ import { externalTools } from '../tools/external.js';
 import { logger } from '../core/logger.js';
 import { db } from '../core/database.js';
 import { v4 as uuidv4 } from 'uuid';
+import { ffuf } from '../tools/ffuf.js';
+import { parameterScanner } from '../scanner/parameters.js';
+import { advancedJsAnalyzer } from '../scanner/ast-analyzer.js';
 
 export interface MonitorConfig {
     targets: string[];
@@ -23,6 +26,7 @@ export interface MonitorConfig {
         nmapTopPorts: number;
         fullScanPorts: number[];
         nucleiSeverity: ('critical' | 'high' | 'medium' | 'low' | 'info')[];
+        aggressive?: boolean;
     };
     screenshots: {
         enabled: boolean;
@@ -392,6 +396,114 @@ class SubdomainMonitor {
             }
         }
 
+        // Phase 4.5: Aggressive Discovery (Optional)
+        if (config.scanning.enabled && config.scanning.aggressive) {
+            logger.info('\n🧨 Phase 4.5: Aggressive Discovery (Fuzzing & Parameters)');
+
+            // 1. Active Fuzzing
+            if (await ffuf.isAvailable()) {
+                const fuzzTargets = result.liveHosts.slice(0, 5); // Limit to top 5 hosts for monitoring speed
+                logger.info(`Running ffuf on ${fuzzTargets.length} hosts...`);
+
+                for (const target of fuzzTargets) {
+                    const paths = await ffuf.discoverDirectories(target);
+                    for (const path of paths) {
+                        // Log only interesting files that are not just simple 200s (e.g. look for sensitive keywords in url)
+                        if (path.url.includes('admin') || path.url.includes('config') || path.url.includes('backup')) {
+                            result.vulnerabilities.push({
+                                host: target,
+                                name: `Exposed File: ${path.url}`,
+                                severity: 'medium',
+                            });
+                            db.createFinding({
+                                id: uuidv4(),
+                                targetId: domain,
+                                type: 'Sensitive File Exposure',
+                                severity: 'medium',
+                                url: path.url,
+                                evidence: `Found via fuzzing: ${path.url} (Status: ${path.status})`,
+                                description: 'Potentially sensitive file discovered during active fuzzing.',
+                                confidence: 0.8,
+                                status: 'new',
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 2. Parameter Discovery
+            logger.info('Running parameter discovery...');
+            const paramTargets = result.liveHosts.slice(0, 5); // Limit check
+            for (const url of paramTargets) {
+                const params = await parameterScanner.scanEndpoint(url);
+                for (const p of params) {
+                    for (const paramName of p.params) {
+                        result.vulnerabilities.push({
+                            host: url,
+                            name: `Hidden Param: ${paramName}`,
+                            severity: 'info',
+                        });
+                        db.createFinding({
+                            id: uuidv4(),
+                            targetId: domain,
+                            type: 'Hidden Parameter Discovered',
+                            severity: 'info',
+                            url: p.url,
+                            parameter: paramName,
+                            evidence: `Parameter '${paramName}' found via ${p.source}`,
+                            description: `Hidden parameter '${paramName}' discovered.`,
+                            confidence: 0.7,
+                            status: 'new',
+                        });
+                    }
+                }
+            }
+        }
+
+        // 3. Advanced JS Analysis (AST)
+        logger.info('Running AST-based JS Analysis...');
+        // Fetch potential JS files from live hosts (naive check for now, can be improved with crawling)
+        // For monitoring, we will just check /main.js, /app.js, /config.js on live hosts as a quick check
+        const commonJsFiles = ['/main.js', '/app.js', '/config.js', '/assets/index.js'];
+
+        for (const host of result.liveHosts.slice(0, 5)) {
+            for (const jsPath of commonJsFiles) {
+                const jsUrl = `${host}${jsPath}`;
+                try {
+                    const axios = (await import('axios')).default;
+                    const res = await axios.get(jsUrl, { timeout: 5000, validateStatus: () => true });
+
+                    if (res.status === 200 && (res.headers['content-type']?.includes('javascript') || res.data.toString().includes('function'))) {
+                        const astResult = advancedJsAnalyzer.analyze(res.data, jsUrl);
+
+                        if (astResult.secrets.length > 0) {
+                            result.vulnerabilities.push({
+                                host: host,
+                                name: `JS Secrets (${astResult.secrets.length})`,
+                                severity: 'critical'
+                            });
+
+                            for (const secret of astResult.secrets) {
+                                db.createFinding({
+                                    id: uuidv4(),
+                                    targetId: domain,
+                                    type: 'Hardcoded Secret / Credential Leak',
+                                    severity: 'critical',
+                                    url: jsUrl,
+                                    evidence: secret.value,
+                                    description: `Hardcoded ${secret.type} found in ${jsUrl} via AST analysis.`,
+                                    confidence: 0.95,
+                                    status: 'verified',
+                                });
+                            }
+                        }
+                    }
+                } catch (err) {
+                    // Ignore 404s etc
+                }
+            }
+        }
+
         // Phase 5: Screenshots (using Eyewitness if available)
         if (config.screenshots.enabled) {
             logger.info('\n📸 Phase 5: Screenshots');
@@ -472,3 +584,4 @@ class SubdomainMonitor {
 }
 
 export const subdomainMonitor = new SubdomainMonitor();
+

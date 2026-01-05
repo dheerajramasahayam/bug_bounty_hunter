@@ -8,7 +8,8 @@ import { externalTools } from '../tools/external.js';
 import { db, Finding } from '../core/database.js';
 import { gemini } from '../core/gemini.js';
 import { logger } from '../core/logger.js';
-
+import { ffuf } from '../tools/ffuf.js';
+import { parameterScanner } from './parameters.js';
 export interface EnhancedScanOptions {
     targetId: string;
     sessionId: string;
@@ -18,6 +19,7 @@ export interface EnhancedScanOptions {
     nucleiTags?: string[];
     skipPortScan?: boolean;
     skipUrlGathering?: boolean;
+    aggressive?: boolean;
 }
 
 export interface EnhancedScanResult {
@@ -231,6 +233,87 @@ class EnhancedScanner {
                     }
                 } catch (error) {
                     logger.warn(`AI analysis failed for finding ${finding.id}`, { error: String(error) });
+                }
+            }
+        }
+
+        // Phase 7: Active Fuzzing (Aggressive Mode)
+        if (options.aggressive) {
+            logger.info('\n🧨 Phase 7: Active Fuzzing & Discovery');
+
+            if (await ffuf.isAvailable()) {
+                // Directory Fuzzing on main domain
+                logger.info('  Running directory fuzzing on live hosts...');
+                const fuzzTargets = result.liveHosts.slice(0, 5); // Limit to top 5 hosts to save time
+
+                for (const target of fuzzTargets) {
+                    const paths = await ffuf.discoverDirectories(target);
+                    for (const path of paths) {
+                        const url = path.url;
+                        if (!result.urls.includes(url)) {
+                            result.urls.push(url);
+                            logger.info(`  Found hidden path: ${url}`);
+
+                            // Check for backup files on interesting paths (config, admin, etc)
+                            if (url.includes('admin') || url.includes('config') || url.includes('api')) {
+                                const backups = await ffuf.scanBackupFiles(url);
+                                for (const backup of backups) {
+                                    const backupUrl = backup.url;
+                                    logger.vulnerability('Sensitive File Exposure', 'high', backupUrl);
+
+                                    const finding: Finding = {
+                                        id: uuidv4(),
+                                        targetId: options.targetId,
+                                        type: 'Sensitive File Exposure',
+                                        severity: 'high',
+                                        url: backupUrl,
+                                        evidence: `Found hidden backup file: ${backupUrl} (Status: ${backup.status})`,
+                                        description: 'A backup file (likely containing source code or secrets) was discovered via fuzzing.',
+                                        confidence: 0.9,
+                                        status: 'new',
+                                        createdAt: new Date().toISOString(),
+                                        updatedAt: new Date().toISOString(),
+                                    };
+                                    result.findings.push(finding);
+                                    db.createFinding(finding);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Phase 8: Parameter Discovery
+        if (options.aggressive) {
+            logger.info('\n🔍 Phase 8: Parameter Discovery');
+
+            // Scan interesting URLs for hidden parameters
+            const targetsToScan = result.urls.filter(u => u.includes('?') || u.includes('.php') || u.includes('.aspx') || u.includes('api')).slice(0, 10);
+
+            for (const url of targetsToScan) {
+                const params = await parameterScanner.scanEndpoint(url);
+                if (params.length > 0) {
+                    for (const p of params) {
+                        for (const paramName of p.params) {
+                            const finding: Finding = {
+                                id: uuidv4(),
+                                targetId: options.targetId,
+                                type: 'Hidden Parameter Discovered',
+                                severity: 'info',
+                                url: p.url,
+                                parameter: paramName,
+                                evidence: `Parameter '${paramName}' discovered via ${p.source}`,
+                                description: `A hidden or undocumented parameter '${paramName}' was discovered. This could be a vector for XSS, SQLi, or IDOR.`,
+                                confidence: 0.7,
+                                status: 'new',
+                                createdAt: new Date().toISOString(),
+                                updatedAt: new Date().toISOString(),
+                            };
+                            result.findings.push(finding);
+                            db.createFinding(finding);
+                        }
+                    }
                 }
             }
         }

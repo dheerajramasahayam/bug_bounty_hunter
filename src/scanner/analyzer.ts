@@ -9,6 +9,7 @@ import { detectXss } from './patterns/xss.js';
 import { detectIdor } from './patterns/idor.js';
 import { analyzeApiSecurity, analyzeApiEndpoint } from './patterns/api.js';
 import { secretsScanner } from './secrets.js';
+import { advancedJsAnalyzer } from './ast-analyzer.js';
 
 export interface ScanResult {
     url: string;
@@ -235,7 +236,27 @@ class VulnerabilityAnalyzer {
             }
         }
 
-        // Secrets Detection in JS
+
+
+        // AST-based Analysis
+        const astResult = advancedJsAnalyzer.analyze(jsCode, jsUrl);
+
+        for (const secret of astResult.secrets) {
+            patternMatches.push({
+                type: 'secret_leak',
+                severity: 'critical',
+                pattern: secret.type,
+                match: secret.value,
+                context: `Hardcoded ${secret.type} found in JavaScript file (AST Analysis)`,
+                confidence: secret.confidence === 'high' ? 0.95 : 0.7,
+            });
+        }
+
+        if (astResult.endpoints.length > 0) {
+            logger.info(`AST Analysis found ${astResult.endpoints.length} endpoints in ${jsUrl}`);
+        }
+
+        // Secrets Detection in JS (Regex Fallback)
         const secrets = await secretsScanner.scanText(jsCode, jsUrl);
         for (const secret of secrets) {
             patternMatches.push({
