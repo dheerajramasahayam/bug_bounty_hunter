@@ -282,13 +282,26 @@ class SubdomainMonitor {
 
         // Phase 2: HTTP Probing
         if (currentSubdomains.size > 0 && await httpx.isAvailable()) {
-            logger.info('\n🌐 Phase 2: HTTP Probing (checking live hosts)');
-            const targets = Array.from(currentSubdomains);
-            const httpxResults = await httpx.probeUrls(targets);
-            result.liveHosts = httpxResults
-                .filter(r => !r.failed && r.statusCode > 0)
-                .map(r => r.url);
-            logger.success(`Found ${result.liveHosts.length} live hosts`);
+            // Phase 2: Live Host Discovery (httpx)
+            logger.info('\n🌐 Phase 2: Live Host Discovery');
+            logger.info(`Running httpx to probe ${currentSubdomains.size} unique subdomains...`);
+
+            const httpxResults = await httpx.run({
+                targets: Array.from(currentSubdomains),
+                timeout: 10,
+                threads: 50,
+                techDetect: true,
+                statusCode: true,
+            });
+
+            logger.success(`Found ${httpxResults.length} live hosts via httpx`);
+
+            // Save live hosts
+            for (const r of httpxResults) {
+                if (!result.liveHosts.includes(r.url)) {
+                    result.liveHosts.push(r.url);
+                }
+            }
         } else if (currentSubdomains.size === 0) {
             logger.info('\n🌐 Phase 2: HTTP Probing skipped (no subdomains found)');
         }
@@ -311,6 +324,7 @@ class SubdomainMonitor {
             // Collect interesting hosts for full scan
             const interestingHosts: string[] = [];
             const interestingPorts = config.scanning.fullScanPorts || [8080, 8443, 8000, 8888, 3000, 5000, 9000, 9090];
+            const httpPorts = [80, 443, 8080, 8443, 8000, 8008, 3000, 5000, 8888];
 
             for (const host of quickResults) {
                 for (const port of host.ports) {
@@ -320,6 +334,16 @@ class SubdomainMonitor {
                             port: port.port,
                             service: port.service || 'unknown',
                         });
+
+                        // BACKFILL: If Nmap finds open HTTP port, add to liveHosts if missing
+                        if (httpPorts.includes(port.port)) {
+                            const protocol = port.port === 443 || port.port === 8443 ? 'https' : 'http';
+                            const url = `${protocol}://${host.hostname || host.ip}${port.port !== 80 && port.port !== 443 ? `:${port.port}` : ''}`;
+                            if (!result.liveHosts.includes(url)) {
+                                result.liveHosts.push(url);
+                                logger.info(`   + Added ${url} to live hosts (found via Nmap)`);
+                            }
+                        }
 
                         // Check if this is an interesting port that warrants full scan
                         if (interestingPorts.includes(port.port)) {
@@ -349,6 +373,13 @@ class SubdomainMonitor {
                                     port: port.port,
                                     service: port.service || 'unknown',
                                 });
+
+                                // BACKFILL: Start full scan results too
+                                const protocol = port.port === 443 || port.port === 8443 ? 'https' : 'http';
+                                const url = `${protocol}://${host.hostname || host.ip}${port.port !== 80 && port.port !== 443 ? `:${port.port}` : ''}`;
+                                if (!result.liveHosts.includes(url) && httpPorts.includes(port.port)) {
+                                    result.liveHosts.push(url);
+                                }
                             }
                         }
                     }
@@ -358,6 +389,7 @@ class SubdomainMonitor {
 
         // Phase 4: Nuclei Vulnerability Scanning
         if (config.scanning.enabled && await nuclei.isAvailable()) {
+            // Use Nmap-verified hosts if available, otherwise fallback to subdomains
             const targets = result.liveHosts.length > 0
                 ? result.liveHosts
                 : Array.from(currentSubdomains).map(s => `https://${s}`);
