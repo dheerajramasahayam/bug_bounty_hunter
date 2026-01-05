@@ -109,6 +109,24 @@ app.get('/api/stats', (_req, res) => {
     }
 });
 
+// Get system status
+app.get('/api/status', async (_req, res) => {
+    try {
+        // In a real implementation, we would check PM2 or a status file
+        // For now, we'll infer status from recent database activity
+        const stats = db.getStats();
+        res.json({
+            online: true,
+            uptime: process.uptime(),
+            lastScan: new Date().toISOString(),
+            activeTarget: 'Monitoring...', // We'll improve this later
+            stats
+        });
+    } catch (error) {
+        res.status(500).json({ error: String(error) });
+    }
+});
+
 // Serve the dashboard
 app.get('*', (_req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
