@@ -38,6 +38,11 @@ class HttpxWrapper {
             return [];
         }
 
+        if (!options.targets || options.targets.length === 0) {
+            logger.warn('httpx called with no targets');
+            return [];
+        }
+
         const args: string[] = [
             '-silent',
             '-json',

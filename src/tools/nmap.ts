@@ -42,6 +42,11 @@ class NmapWrapper {
             return [];
         }
 
+        if (!options.targets || options.targets.length === 0) {
+            logger.warn('Nmap called with no targets');
+            return [];
+        }
+
         const args: string[] = [
             '-oX', '-', // XML output to stdout
         ];

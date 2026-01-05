@@ -72,6 +72,11 @@ class NucleiWrapper {
             return [];
         }
 
+        if (!options.targets || options.targets.length === 0) {
+            logger.warn('Nuclei called with no targets');
+            return [];
+        }
+
         const args: string[] = [
             '-silent',
             '-json',
